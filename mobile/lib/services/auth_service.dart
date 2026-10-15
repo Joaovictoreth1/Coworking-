@@ -1,41 +1,44 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../config.dart';
+import 'api_client.dart';
+
+export 'api_client.dart' show ApiException;
 
 class AuthUser {
   final int id;
   final String name;
   final String email;
+  final bool isAdmin;
 
-  const AuthUser({required this.id, required this.name, required this.email});
+  const AuthUser({
+    required this.id,
+    required this.name,
+    required this.email,
+    this.isAdmin = false,
+  });
 
   factory AuthUser.fromJson(Map<String, dynamic> json) => AuthUser(
         id: json['id'] as int,
         name: json['name'] as String,
         email: json['email'] as String,
+        isAdmin: json['is_admin'] == true || json['role'] == 'admin',
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'name': name, 'email': email};
-}
-
-class ApiException implements Exception {
-  final String message;
-  final int status;
-  final Map<String, String> fieldErrors;
-
-  const ApiException(this.message, {this.status = 0, this.fieldErrors = const {}});
-
-  @override
-  String toString() => message;
+  Map<String, dynamic> toJson() =>
+      {'id': id, 'name': name, 'email': email, 'is_admin': isAdmin};
 }
 
 class AuthService extends ChangeNotifier {
+  AuthService() {
+    api = ApiClient(tokenGetter: () => _token, onUnauthorized: _handleUnauthorized);
+  }
+
+  /// Cliente HTTP compartilhado com os demais serviços (já envia o token).
+  late final ApiClient api;
+
   static const _tokenKey = 'auth_token';
   static const _userKey = 'auth_user';
 
@@ -43,6 +46,7 @@ class AuthService extends ChangeNotifier {
   String? _token;
   AuthUser? _user;
 
+  String? get token => _token;
   AuthUser? get user => _user;
   bool get isLoggedIn => _token != null && _user != null;
 
@@ -65,7 +69,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> _refreshUser() async {
     try {
-      final data = await _request('GET', '/auth/me', auth: true);
+      final data = await api.send('GET', '/auth/me');
       _user = AuthUser.fromJson(data['user'] as Map<String, dynamic>);
       await _prefs!.setString(_userKey, jsonEncode(_user!.toJson()));
       notifyListeners();
@@ -79,7 +83,7 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<void> login(String email, String password) async {
-    final data = await _request('POST', '/auth/login', body: {
+    final data = await api.send('POST', '/auth/login', auth: false, body: {
       'email': email,
       'password': password,
       'device_name': 'mobile',
@@ -93,7 +97,7 @@ class AuthService extends ChangeNotifier {
     required String password,
     required String passwordConfirmation,
   }) async {
-    final data = await _request('POST', '/auth/register', body: {
+    final data = await api.send('POST', '/auth/register', auth: false, body: {
       'name': name,
       'email': email,
       'password': password,
@@ -105,7 +109,7 @@ class AuthService extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      await _request('POST', '/auth/logout', auth: true);
+      await api.send('POST', '/auth/logout');
     } on ApiException {
       // Sem internet ou token já inválido: encerra localmente do mesmo jeito.
     }
@@ -121,63 +125,20 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Token recusado pelo servidor em qualquer tela: encerra a sessão local.
+  void _handleUnauthorized() {
+    if (_token == null) return;
+    _token = null;
+    _user = null;
+    _prefs?.remove(_tokenKey);
+    _prefs?.remove(_userKey);
+    notifyListeners();
+  }
+
   Future<void> _clearLocal() async {
     _token = null;
     _user = null;
     await _prefs?.remove(_tokenKey);
     await _prefs?.remove(_userKey);
-  }
-
-  Future<Map<String, dynamic>> _request(
-    String method,
-    String path, {
-    Map<String, dynamic>? body,
-    bool auth = false,
-  }) async {
-    final headers = <String, String>{'Accept': 'application/json'};
-    if (body != null) headers['Content-Type'] = 'application/json';
-    if (auth && _token != null) headers['Authorization'] = 'Bearer $_token';
-
-    final uri = Uri.parse('$apiUrl$path');
-    final encoded = body != null ? jsonEncode(body) : null;
-
-    http.Response res;
-    try {
-      final future = method == 'POST'
-          ? http.post(uri, headers: headers, body: encoded)
-          : http.get(uri, headers: headers);
-      res = await future.timeout(const Duration(seconds: 15));
-    } on TimeoutException {
-      throw const ApiException('O servidor demorou para responder.');
-    } on SocketException {
-      throw const ApiException('Sem conexão com o servidor.');
-    } on http.ClientException {
-      throw const ApiException('Sem conexão com o servidor.');
-    }
-
-    Map<String, dynamic> data = {};
-    try {
-      final decoded = jsonDecode(res.body);
-      if (decoded is Map<String, dynamic>) data = decoded;
-    } catch (_) {}
-
-    if (res.statusCode < 200 || res.statusCode >= 300) {
-      final fieldErrors = <String, String>{};
-      final errors = data['errors'];
-      if (errors is Map) {
-        errors.forEach((key, value) {
-          if (value is List && value.isNotEmpty) {
-            fieldErrors[key.toString()] = value.first.toString();
-          }
-        });
-      }
-      throw ApiException(
-        (data['message'] as String?) ?? 'Erro inesperado (${res.statusCode}).',
-        status: res.statusCode,
-        fieldErrors: fieldErrors,
-      );
-    }
-
-    return data;
   }
 }
