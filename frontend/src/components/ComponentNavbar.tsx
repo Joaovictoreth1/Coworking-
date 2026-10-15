@@ -18,37 +18,51 @@ import {
 } from './icons'
 import Logo from './Logo'
 
+// --- Tipos e Interfaces ---
+interface SearchBarProps {
+    onSearch?: (query: string) => void
+    className?: string
+}
+
+interface NavbarProps {
+    onSearch?: (query: string) => void
+}
+
+interface MobileMenuProps {
+    isOpen: boolean
+    onClose: () => void
+    onSearch?: (query: string) => void
+}
+
+// --- Estilos Base ---
 const linkBase =
     'rounded px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
 const menuItem =
     'flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
 
-function SearchBar({
-    onSearch,
-    className = '',
-}: {
-    onSearch?: (query: string) => void
-    className?: string
-}) {
+// --- Componentes Menores ---
+function SearchBar({ onSearch, className = '' }: SearchBarProps) {
     const [query, setQuery] = useState('')
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault()
+        onSearch?.(query.trim())
+    }
 
     return (
         <form
             role="search"
-            onSubmit={(e) => {
-                e.preventDefault()
-                onSearch?.(query.trim())
-            }}
+            onSubmit={handleSubmit}
             className={`relative ${className}`}
         >
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-500" />
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
             <input
                 type="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Pesquisar"
                 aria-label="Pesquisar"
-                className="h-9 w-full rounded border border-slate-200 bg-slate-100 pr-3 pl-9 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white"
+                className="h-9 w-full rounded border border-slate-200 bg-slate-100 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white"
             />
         </form>
     )
@@ -73,9 +87,13 @@ function ResourcesDropdown() {
                         onClick={close}
                         className="block rounded px-3 py-2 transition hover:bg-slate-100"
                     >
-                        <span className="block text-sm font-medium text-slate-900">{item.label}</span>
+                        <span className="block text-sm font-medium text-slate-900">
+                            {item.label}
+                        </span>
                         {item.description && (
-                            <span className="block text-xs text-slate-600">{item.description}</span>
+                            <span className="block text-xs text-slate-600">
+                                {item.description}
+                            </span>
                         )}
                     </a>
                 ))
@@ -87,18 +105,22 @@ function ResourcesDropdown() {
 function UserMenu() {
     const { user, logout } = useAuth()
 
+    // Proteção caso user.name seja undefined/vazio de forma inesperada
+    const initial = user?.name?.trim().charAt(0).toUpperCase()
+    const firstName = user?.name?.split(' ')[0]
+
     return (
         <Dropdown
             align="right"
             label="Menu do usuário"
-            triggerClassName="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 py-1 pr-2.5 pl-1 text-sm text-slate-800 transition hover:bg-slate-100"
+            triggerClassName="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 py-1 pl-1 pr-2.5 text-sm text-slate-800 transition hover:bg-slate-100"
             trigger={
                 <>
                     <span className="grid h-7 w-7 place-items-center rounded-full bg-indigo-500 text-xs font-semibold text-white">
-                        {user ? user.name.trim().charAt(0).toUpperCase() : <UserIcon className="h-4 w-4" />}
+                        {initial ? initial : <UserIcon className="h-4 w-4" />}
                     </span>
                     <span className="hidden max-w-28 truncate sm:inline">
-                        {user ? user.name.split(' ')[0] : 'Conta'}
+                        {user ? firstName : 'Conta'}
                     </span>
                     <ChevronDownIcon className="h-4 w-4 text-slate-600" />
                 </>
@@ -149,12 +171,55 @@ function UserMenu() {
     )
 }
 
-export default function ComponentNavbar({ onSearch }: { onSearch?: (query: string) => void }) {
+function MobileMenu({ isOpen, onClose, onSearch }: MobileMenuProps) {
+    if (!isOpen) return null
+
+    return (
+        <div id="mobile-menu" className="border-t border-slate-200 pb-4 pt-3 lg:hidden">
+            <SearchBar onSearch={onSearch} className="mb-3" />
+            <nav className="flex flex-col">
+                {NAV_LINKS.map((link) => (
+                    <a
+                        key={link.href}
+                        href={link.href}
+                        onClick={onClose}
+                        className={`${linkBase} py-2.5`}
+                    >
+                        {link.label}
+                    </a>
+                ))}
+                <details className="group">
+                    <summary
+                        className={`${linkBase} flex cursor-pointer list-none items-center justify-between py-2.5 [&::-webkit-details-marker]:hidden`}
+                    >
+                        {NAV_DROPDOWN.label}
+                        <ChevronDownIcon className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
+                    </summary>
+                    <div className="ml-3 mt-1 flex flex-col border-l border-slate-200 pl-2">
+                        {NAV_DROPDOWN.items.map((item) => (
+                            <a
+                                key={item.href}
+                                href={item.href}
+                                onClick={onClose}
+                                className={`${linkBase} py-2.5`}
+                            >
+                                {item.label}
+                            </a>
+                        ))}
+                    </div>
+                </details>
+            </nav>
+        </div>
+    )
+}
+
+// --- Componente Principal ---
+export default function ComponentNavbar({ onSearch }: NavbarProps) {
     const [menuOpen, setMenuOpen] = useState(false)
     const closeMenu = () => setMenuOpen(false)
 
     return (
-        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white ">
+        <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
             <Container>
                 <div className="flex h-16 items-center gap-3">
                     {/* Esquerda: logo + título */}
@@ -193,43 +258,7 @@ export default function ComponentNavbar({ onSearch }: { onSearch?: (query: strin
                 </div>
 
                 {/* Menu mobile */}
-                {menuOpen && (
-                    <div id="mobile-menu" className="border-t border-slate-200 pt-3 pb-4 lg:hidden">
-                        <SearchBar onSearch={onSearch} className="mb-3" />
-                        <nav className="flex flex-col">
-                            {NAV_LINKS.map((link) => (
-                                <a
-                                    key={link.href}
-                                    href={link.href}
-                                    onClick={closeMenu}
-                                    className={`${linkBase} py-2.5`}
-                                >
-                                    {link.label}
-                                </a>
-                            ))}
-                            <details className="group">
-                                <summary
-                                    className={`${linkBase} flex cursor-pointer list-none items-center justify-between py-2.5 [&::-webkit-details-marker]:hidden`}
-                                >
-                                    {NAV_DROPDOWN.label}
-                                    <ChevronDownIcon className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
-                                </summary>
-                                <div className="mt-1 ml-3 flex flex-col border-l border-slate-200 pl-2">
-                                    {NAV_DROPDOWN.items.map((item) => (
-                                        <a
-                                            key={item.href}
-                                            href={item.href}
-                                            onClick={closeMenu}
-                                            className={`${linkBase} py-2.5`}
-                                        >
-                                            {item.label}
-                                        </a>
-                                    ))}
-                                </div>
-                            </details>
-                        </nav>
-                    </div>
-                )}
+                <MobileMenu isOpen={menuOpen} onClose={closeMenu} onSearch={onSearch} />
             </Container>
         </header>
     )
