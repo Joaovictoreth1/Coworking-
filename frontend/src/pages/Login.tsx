@@ -32,12 +32,18 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
     }
 
     return (
-        <AuthLayout title="Entrar" subtitle="Acesse sua conta para continuar.">
-            <form onSubmit={handleSubmit} className="space-y-4">
+        <AuthLayout
+            title="Entrar"
+            subtitle="Acesse sua conta para continuar."
+            asideTitle="Bom te ver de novo."
+            asideText="Entre para continuar de onde você parou."
+        >
+            <form onSubmit={handleSubmit} className="space-y-5">
                 <Field
                     label="E-mail"
                     type="email"
                     autoComplete="email"
+                    placeholder="voce@exemplo.com"
                     value={email}
                     onChange={setEmail}
                     error={errors.email?.[0]}
@@ -46,22 +52,34 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
                     label="Senha"
                     type="password"
                     autoComplete="current-password"
+                    placeholder="Sua senha"
                     value={password}
                     onChange={setPassword}
                     error={errors.password?.[0]}
                 />
-                {message && <p className="text-sm text-red-400">{message}</p>}
+                {message && (
+                    <p
+                        role="alert"
+                        className="rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+                    >
+                        {message}
+                    </p>
+                )}
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="w-full rounded-lg bg-blue-600 px-5 py-2 font-medium transition hover:bg-blue-700 disabled:opacity-60"
+                    className="h-11 w-full rounded-md bg-indigo-600 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
                 >
                     {submitting ? 'Entrando...' : 'Entrar'}
                 </button>
             </form>
-            <p className="mt-6 text-center text-sm text-gray-400">
+            <p className="mt-6 text-center text-sm text-slate-600">
                 Não tem conta?{' '}
-                <button onClick={onGoRegister} className="text-blue-500 hover:underline">
+                <button
+                    type="button"
+                    onClick={onGoRegister}
+                    className="font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+                >
                     Cadastre-se
                 </button>
             </p>

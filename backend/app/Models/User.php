@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
@@ -24,6 +25,29 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    public const ROLE_ADMIN = 'admin';
+    public const ROLE_USER = 'user';
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function spaces(): HasMany
+    {
+        return $this->hasMany(Space::class);
+    }
+
+    public function favoriteSpaces(): BelongsToMany
+    {
+        return $this->belongsToMany(Space::class, 'favorites')->withTimestamps();
+    }
+
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(SpaceReview::class);
+    }
+
     public function apiTokens(): HasMany
     {
         return $this->hasMany(ApiToken::class);

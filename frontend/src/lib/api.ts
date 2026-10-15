@@ -13,6 +13,8 @@ export interface User {
     id: number
     name: string
     email: string
+    role: 'admin' | 'user'
+    is_admin: boolean
 }
 
 interface AuthResponse {
@@ -31,11 +33,12 @@ export class ApiError extends Error {
     }
 }
 
-async function request<T>(
+export async function request<T>(
     path: string,
-    options: { method?: string; body?: unknown; token?: string | null } = {},
+    options: { method?: string; body?: unknown; form?: FormData; token?: string | null } = {},
 ): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' }
+    // Com FormData o navegador define o Content-Type (com o boundary) sozinho
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'
     if (options.token) headers.Authorization = `Bearer ${options.token}`
 
@@ -44,7 +47,9 @@ async function request<T>(
         res = await fetch(`${API_URL}${path}`, {
             method: options.method ?? 'GET',
             headers,
-            body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+            body:
+                options.form ??
+                (options.body !== undefined ? JSON.stringify(options.body) : undefined),
         })
     } catch {
         throw new ApiError('Não foi possível conectar ao servidor.', 0)
