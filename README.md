@@ -1,8 +1,6 @@
-🏢 Coworking SP - Encontre o seu espaço ideal
+Oi! 👋 Construí o Coworking SP para resolver um problema prático que muitos de nós enfrentamos: encontrar um lugar legal, acessível (ou até gratuito!) para trabalhar em São Paulo.
 
-Um aplicativo mobile, disponível na Play Store, desenvolvido para ajudar profissionais independentes, freelancers, estudantes e equipes a encontrarem os melhores espaços de coworking em São Paulo.
-
-Seja para uma reunião importante, um dia de foco total ou apenas um lugar com bom Wi-Fi e café gratuito, o Coworking SP conecta você ao espaço perfeito.
+A ideia é simples: ajudar profissionais independentes, freelancers, estudantes e equipes a saírem de casa e acharem o espaço perfeito. Seja para uma reunião importante, um dia de foco total ou só para aproveitar um bom Wi-Fi com café, o projeto mapeia as melhores opções perto de você.
 
 
 ✨ Funcionalidades
@@ -19,26 +17,30 @@ Seja para uma reunião importante, um dia de foco total ou apenas um lugar com b
 
 📱 Roteamento: Integração direta com Google Maps/Waze para traçar a rota até o coworking escolhido.
 
+📸 Screenshots
 
+(Substitua os links abaixo pelas imagens reais das telas do seu aplicativo)
 
 🛠️ Tecnologias Utilizadas
 
+Este projeto foi desenvolvido com uma arquitetura moderna dividida em três frentes:
 
-Frontend (Mobile):
+Frontend Mobile (App):
 
-React Native / Flutter / Kotlin
+Flutter (Dart)
 
-Maps API (Google Maps)
+Google Maps API
 
-Gerenciamento de estado (Redux / Context API / Bloc)
+Frontend Web (Site):
 
-Backend & Dados:
+React com TypeScript
 
-Node.js / Spring Boot
 
-Firebase (Autenticação e Analytics)
+Backend (API):
 
-PostgreSQL / MongoDB / Firestore
+Laravel (PHP)
+
+Banco de Dados: MySQL
 
 Design:
 
@@ -46,64 +48,12 @@ Figma
 
 🚀 Como executar o projeto localmente
 
-Se você deseja clonar e rodar o projeto em sua máquina para testes ou contribuições, siga os passos abaixo:
+Como o ecossistema é dividido em três partes (App, Site e API), você precisará configurar cada ambiente separadamente.
 
 Pré-requisitos
 
-Node.js instalado (ou SDK do Flutter/Android Studio, dependendo da sua stack)
+Mobile: SDK do Flutter e Android Studio configurados.
 
-Emulador Android configurado ou dispositivo físico conectado.
+Web: Node.js e npm/yarn instalados.
 
-Chave de API do Google Maps (Configure no arquivo .env).
-
-Passo a Passo
-
-Clone o repositório:
-
-
-
-Acesse a pasta do projeto:
-
-cd coworking-sp
-
-
-Instale as dependências:
-
-npm install
-# ou yarn install
-
-
-Configure as variáveis de ambiente:
-Crie um arquivo .env na raiz do projeto com base no arquivo .env.example e insira suas credenciais.
-
-Rode o aplicativo:
-
-npx react-native run-android
-# ou flutter run
-
-
-🤝 Como Contribuir
-
-Contribuições são sempre bem-vindas! Se você conhece algum coworking gratuito em São Paulo que não está no app, ou deseja melhorar o código:
-
-Faça um Fork do projeto
-
-Crie uma nova branch para sua funcionalidade/correção (git checkout -b feature/minha-feature)
-
-Faça o commit das suas alterações (git commit -m 'feat: Adicionando novo filtro de busca')
-
-Faça o push para a branch (git push origin feature/minha-feature)
-
-Abra um Pull Request
-
-📄 Licença
-
-Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
-
-✉️ Contato
-
-
-
-📧 E-mail: contato@seuemail.com
-
-🌐 Site: seusite.com.br
+Backend: PHP, Composer e um servidor local com MySQL (como XAMPP, Docker ou Laravel Sail).
