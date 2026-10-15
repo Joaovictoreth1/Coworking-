@@ -10,16 +10,20 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
+    public const DEFAULT_EMAIL = 'admin@teste.com';
+    public const DEFAULT_PASSWORD = '12345678';
+
     /**
-     * Seed the application's database.
+     * Pode rodar várias vezes: cria o usuário padrão se não existir e,
+     * se já existir, redefine nome e senha para os valores padrão.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
+        User::updateOrCreate(
+            ['email' => self::DEFAULT_EMAIL],
+            ['name' => 'Admin', 'password' => self::DEFAULT_PASSWORD],
+        );
 
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        $this->command?->info('Usuário padrão: '.self::DEFAULT_EMAIL.' / senha: '.self::DEFAULT_PASSWORD);
     }
 }

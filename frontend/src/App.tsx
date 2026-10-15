@@ -1,19 +1,27 @@
+import { useState } from 'react'
+import { useAuth } from './auth/context'
+import Home from './pages/Home'
+import Login from './pages/Login'
+import Register from './pages/Register'
 
 function App() {
-    return (
-        <main className="flex min-h-screen items-center justify-center bg-gray-950 text-white">
-            <div className="rounded-xl border border-gray-800 bg-gray-900 p-8 text-center shadow-xl">
-                <h1 className="text-3xl font-bold text-blue-500">
-                    React + Tailwind CSS
-                </h1>
-                <p className="mt-3 text-gray-400">
-                    Tailwind CSS está funcionando.
-                </p>
-                <button className="mt-6 rounded-lg bg-blue-600 px-5 py-2 font-medium transition hover:bg-blue-700">
-                    Começar
-                </button>
-            </div>
-        </main>
+    const { user, loading } = useAuth()
+    const [screen, setScreen] = useState<'login' | 'register'>('login')
+
+    if (loading) {
+        return (
+            <main className="flex min-h-screen items-center justify-center bg-gray-950 text-gray-400">
+                Carregando...
+            </main>
+        )
+    }
+
+    if (user) return <Home />
+
+    return screen === 'login' ? (
+        <Login onGoRegister={() => setScreen('register')} />
+    ) : (
+        <Register onGoLogin={() => setScreen('login')} />
     )
 }
 
