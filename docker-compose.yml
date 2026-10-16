@@ -1,4 +1,8 @@
-name: coworking
+xname: coworking
+
+networks:
+  app-network:
+    driver: bridge
 
 services:
   db:
@@ -6,15 +10,17 @@ services:
     container_name: coworking-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: coworking
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_DATABASE: ${DB_DATABASE:-coworking}
     volumes:
       - db_data:/var/lib/mysql
+    networks:
+      - app-network
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
-      interval: 5s
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
       timeout: 5s
-      retries: 20
+      retries: 5
 
   phpmyadmin:
     image: phpmyadmin:latest
@@ -29,9 +35,14 @@ services:
       UPLOAD_LIMIT: 128M
     ports:
       - "8081:80"
+    networks:
+      - app-network
+    profiles:
+      - tools # Opcional: permite rodar apenas quando necessário
 
   backend:
-    build: ./backend
+    build: 
+      context: ./backend
     container_name: coworking-backend
     restart: unless-stopped
     depends_on:
@@ -44,54 +55,24 @@ services:
       - "8000:8000"
     environment:
       PHP_CLI_SERVER_WORKERS: 4
-    command:
-      - sh
-      - -c
-      - |
-        set -e
-
-        echo "=== Preparando ambiente Laravel ==="
-
-        if [ ! -f .env ]; then
-          cp .env.example .env
-        fi
-
-        if [ ! -f vendor/autoload.php ]; then
-          composer install --no-interaction --prefer-dist
-        fi
-
-        mkdir -p bootstrap/cache
-        mkdir -p storage/app/public
-        mkdir -p storage/framework/cache
-        mkdir -p storage/framework/sessions
-        mkdir -p storage/framework/views
-        mkdir -p storage/logs
-
-        chmod -R ug+rwX storage bootstrap/cache
-
-        echo "=== Descobrindo pacotes Laravel ==="
-        php artisan package:discover --ansi
-
-        if ! grep -q '^APP_KEY=.\+' .env; then
-          php artisan key:generate --force
-        fi
-
-        echo "=== Aguardando MySQL ==="
-        until php -r 'try { new PDO("mysql:host=db;port=3306;dbname=coworking", "root", "root"); } catch (Throwable $$e) { exit(1); }'; do
-          sleep 2
-        done
-
-        echo "=== Executando migrations ==="
-        php artisan migrate --force
-
-        echo "=== Executando seeders ==="
-        php artisan db:seed --force
-
-        echo "=== Configurando storage ==="
-        php artisan storage:link --force
-
-        echo "=== Iniciando servidor Laravel ==="
-        exec php artisan serve --host=0.0.0.0 --port=8000
+    networks:
+      - app-network
+    command: >
+      sh -c "
+      echo '=== Preparando ambiente Laravel ===' &&
+      [ ! -f .env ] && cp .env.example .env;
+      [ ! -f vendor/autoload.php ] && composer install --no-interaction --prefer-dist;
+      mkdir -p bootstrap/cache storage/app/public storage/framework/cache storage/framework/sessions storage/framework/views storage/logs &&
+      chmod -R ug+rwX storage bootstrap/cache &&
+      php artisan package:discover --ansi &&
+      grep -q '^APP_KEY=.\+' .env || php artisan key:generate --force &&
+      echo '=== Executando migrations e seeders ===' &&
+      php artisan migrate --force &&
+      php artisan db:seed --force &&
+      php artisan storage:link --force &&
+      echo '=== Iniciando servidor Laravel ===' &&
+      exec php artisan serve --host=0.0.0.0 --port=8000
+      "
 
   frontend:
     image: node:22-alpine
@@ -103,6 +84,8 @@ services:
       - frontend_node_modules:/app/node_modules
     ports:
       - "5173:5173"
+    networks:
+      - app-network
     command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
 
 volumes:
