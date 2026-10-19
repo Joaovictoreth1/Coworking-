@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\SpaceResource;
 use App\Models\Space;aaaaaa
-use Illuminate\Http\Request;aaaaaw
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class PublicSpaceController extends Controller
