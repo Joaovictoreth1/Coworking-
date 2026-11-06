@@ -12,9 +12,9 @@ export interface SectionProps extends React.HTMLAttributes<HTMLElement> {
 
 export function Section({ title, description, children, className = '', ...props }: SectionProps) {
     const titleId = useId()
-    
+
     return (
-        <section 
+        <section
             aria-labelledby={titleId}
             className={`rounded-md border border-slate-200 bg-white p-5 sm:p-6 ${className}`}
             {...props}
@@ -86,15 +86,13 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
                 aria-label={label}
                 disabled={disabled}
                 onClick={() => onChange(!checked)}
-                className={`relative h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    checked ? 'bg-indigo-500' : 'bg-slate-300'
-                } ${className}`}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${checked ? 'bg-indigo-500' : 'bg-slate-300'
+                    } ${className}`}
                 {...props}
             >
                 <span
-                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                        checked ? 'translate-x-5' : 'translate-x-0'
-                    }`}
+                    className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'
+                        }`}
                 />
             </button>
         )
@@ -119,8 +117,8 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
 
         return (
             <div className={className}>
-                <label 
-                    htmlFor={id} 
+                <label
+                    htmlFor={id}
                     className={`text-sm font-medium ${disabled ? 'text-slate-400' : 'text-slate-700'}`}
                 >
                     {label}
@@ -161,6 +159,7 @@ export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement
     onChange: (value: string) => void
     options: SelectOption[]
     error?: string
+    placeholder?: string
 }
 
 export const Select = forwardRef<HTMLSelectElement, SelectProps>(
@@ -170,8 +169,8 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
 
         return (
             <div className={className}>
-                <label 
-                    htmlFor={id} 
+                <label
+                    htmlFor={id}
                     className={`text-sm font-medium ${disabled ? 'text-slate-400' : 'text-slate-700'}`}
                 >
                     {label}
@@ -196,7 +195,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
                         <option key={o.value} value={o.value}>
                             {o.label}
                         </option>
-                    )}
+                    ))}
                 </select>
                 {error && (
                     <p id={errorId} data-error="true" className="mt-1.5 text-sm text-red-600">

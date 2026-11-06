@@ -33,9 +33,9 @@ class SpaceResource extends JsonResource
             'is_free' => (bool) $this->is_free,
 
             // Preenchidos por Space::withStats(); sem isso, ficam nulos/zerados.
-            'rating_avg' => ($avg = $this->resource->getAttribute('reviews_avg_rating')) !== null ? round((float) $avg, 1) : null,
-            'reviews_count' => (int) ($this->resource->getAttribute('reviews_count') ?? 0),
-            'is_favorite' => (bool) $this->resource->getAttribute('is_favorite'),
+            'rating_avg' => ($avg = ($this->resource->getAttributes()['reviews_avg_rating'] ?? null)) !== null ? round((float) $avg, 1) : null,
+            'reviews_count' => (int) ($this->resource->getAttributes()['reviews_count'] ?? 0),
+            'is_favorite' => (bool) ($this->resource->getAttributes()['is_favorite'] ?? false),
 
             'opening_hours' => $this->opening_hours ?? [],
             'availability' => $this->availability ?? [],
