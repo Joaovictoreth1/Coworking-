@@ -12,7 +12,6 @@ import '../widgets/space_card.dart';
 import 'admin/spaces_list_screen.dart';
 import 'favorites_screen.dart';
 import 'login_screen.dart';
-import 'register_screen.dart';
 import 'space_detail_screen.dart';
 
 /// Vitrine pública: busca, filtros de preço, ordenação e lista de locais.
@@ -280,7 +279,7 @@ class _HomeScreenState extends State<HomeScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               itemCount: _items.length + 2,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              separatorBuilder: (_, _) => const SizedBox(height: 14),
               itemBuilder: (context, i) {
                 if (i == 0) {
                   return Column(

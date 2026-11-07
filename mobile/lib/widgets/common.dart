@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Mensagem de erro/sucesso em destaque (equivale ao <Alert> do site).
+/// Mensagem de erro/sucesso em destaque (equivale ao `<Alert>` do site).
 class InfoBanner extends StatelessWidget {
   final String text;
   final bool error;
@@ -79,7 +79,7 @@ class NetImage extends StatelessWidget {
       width: double.infinity,
       height: double.infinity,
       loadingBuilder: (_, child, progress) => progress == null ? child : placeholder,
-      errorBuilder: (_, __, ___) => placeholder,
+      errorBuilder: (_, _, _) => placeholder,
     );
   }
 }

@@ -136,7 +136,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           physics: const AlwaysScrollableScrollPhysics(),
                           padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                           itemCount: shown.length + 2,
-                          separatorBuilder: (_, __) => const SizedBox(height: 14),
+                          separatorBuilder: (_, _) => const SizedBox(height: 14),
                           itemBuilder: (context, i) {
                             if (i == 0) {
                               return Column(
