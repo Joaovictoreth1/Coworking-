@@ -53,3 +53,4 @@ class RegisterRequest extends FormRequest
         ];
     }
 }
+

@@ -144,3 +144,4 @@ class AuthTest extends TestCase
         $meResponse->assertStatus(401);
     }
 }
+

@@ -67,3 +67,4 @@ class SpaceFactory extends Factory
         ]);
     }
 }
+
