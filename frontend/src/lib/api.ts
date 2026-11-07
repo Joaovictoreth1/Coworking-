@@ -1,5 +1,5 @@
 export const API_URL: string =
-    import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api'
+    import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 
 const TOKEN_KEY = 'auth_token'
 

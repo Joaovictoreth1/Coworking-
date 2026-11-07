@@ -26,8 +26,6 @@ class ApiToken extends Model
     protected function casts(): array
     {
         return [
-            // Criptografa o token automaticamente ao salvar e o verifica ao comparar
-            'token' => 'hashed', 
             'last_used_at' => 'datetime',
             'expires_at' => 'datetime',
         ];

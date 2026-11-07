@@ -11,7 +11,7 @@ class EnsureAdmin
     // Roda depois do "auth.token": só deixa passar usuários marcados como administradores.
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user()?->is_admin) {
+        if (! $request->user()?->isAdmin()) {
             return response()->json(['message' => 'Acesso restrito a administradores.'], 403);
         }
 

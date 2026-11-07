@@ -33,6 +33,11 @@ class User extends Authenticatable
         return $this->role === self::ROLE_ADMIN;
     }
 
+    public function getIsAdminAttribute(): bool
+    {
+        return $this->isAdmin();
+    }
+
     public function spaces(): HasMany
     {
         return $this->hasMany(Space::class);

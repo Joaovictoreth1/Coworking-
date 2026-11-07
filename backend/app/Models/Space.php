@@ -49,7 +49,7 @@ class Space extends Model
             return $query;
         }
 
-        $like = '\%' . addcslashes($term, '%_\\') . '%';
+        $like = '%' . addcslashes($term, '%_\\') . '%';
 
         // Utilizando o `whereAny` introduzido no Laravel 11 para simplificar o OR
         return $query->whereAny(
@@ -116,7 +116,7 @@ class Space extends Model
         $least = $query->getConnection()->getDriverName() === 'sqlite' ? 'min' : 'least';$big = '999999999.99'; // Melhor precisão para campos decimais
 
         return $query->orderByRaw(
-            "CASE WHEN is_free THEN 0 ELSE $least(COALESCE(hourly_price, $big), COALESCE(daily_price,$big), COALESCE(monthly_price, $big)) END$direction"
+            "CASE WHEN is_free THEN 0 ELSE $least(COALESCE(hourly_price, $big), COALESCE(daily_price, $big), COALESCE(monthly_price, $big)) END $direction"
         );
     }
 

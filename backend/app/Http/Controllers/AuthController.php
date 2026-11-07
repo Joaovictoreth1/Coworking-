@@ -15,8 +15,8 @@ class AuthController extends Controller
 {
     public function register(RegisterRequest $request): JsonResponse
     {
-        // A validação e a normalização do e-mail agora ocorrem no RegisterRequest
-        $user = User::create($request->validated());
+        // Apenas os campos do modelo de usuário são passados para o create
+        $user = User::create($request->safe()->only(['name', 'email', 'password']));
 
         return response()->json([
             'user' => new UserResource($user),
