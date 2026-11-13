@@ -84,6 +84,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Este seeder cria contas com senha pública; nunca pode rodar em produção.
+        // O primeiro admin de produção é criado com: php artisan coworking:create-admin
+        if (app()->isProduction()) {
+            throw new \RuntimeException('DatabaseSeeder é apenas para desenvolvimento. Use coworking:create-admin.');
+        }
+
         $admin = User::updateOrCreate(
             ['email' => self::ADMIN_EMAIL],
             ['name' => 'Admin', 'password' => self::PASSWORD],

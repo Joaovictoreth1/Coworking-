@@ -1,0 +1,14 @@
+{
+	frankenphp
+	auto_https off
+	admin off
+}
+
+:8080 {
+	root * /app/public
+	encode zstd gzip
+	request_body {
+		max_size 64MB
+	}
+	php_server
+}

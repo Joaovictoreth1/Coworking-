@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Atrás do proxy (Caddy) o IP real do cliente vem em X-Forwarded-For; sem isso o throttle
+        // enxergaria todos os usuários como um só. Restrinja TRUSTED_PROXIES se expuser o app direto.
+        $middleware->trustProxies(at: env('TRUSTED_PROXIES', '*') === '*' ? '*' : explode(',', env('TRUSTED_PROXIES')));
+
         $middleware->alias([
             'auth.token' => AuthenticateApiToken::class,
             'admin' => EnsureAdmin::class,

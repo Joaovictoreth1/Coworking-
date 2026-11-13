@@ -3,6 +3,7 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\FavoriteController;
 use App\Http\Controllers\PublicSpaceController;
+use App\Http\Controllers\ReservationController;
 use App\Http\Controllers\SpaceController;
 use App\Http\Controllers\SpacePhotoController;
 use App\Http\Controllers\SpaceReviewController;
@@ -23,6 +24,16 @@ Route::middleware(['auth.token:optional', 'throttle:120,1'])->group(function () 
     Route::get('spaces', [PublicSpaceController::class, 'index']);
     Route::get('spaces/{space}', [PublicSpaceController::class, 'show'])->whereNumber('space');
     Route::get('spaces/{space}/reviews', [SpaceReviewController::class, 'index'])->whereNumber('space');
+    Route::get('spaces/{space}/availability', [ReservationController::class, 'availability'])->whereNumber('space');
+});
+
+// Reservas (exigem login)
+Route::middleware('auth.token')->group(function () {
+    Route::get('reservations', [ReservationController::class, 'index']);
+    Route::post('spaces/{space}/reservations', [ReservationController::class, 'store'])
+        ->whereNumber('space')
+        ->middleware('throttle:20,1');
+    Route::delete('reservations/{reservation}', [ReservationController::class, 'destroy'])->whereNumber('reservation');
 });
 
 // Favoritos e avaliações (exigem login)
@@ -46,6 +57,7 @@ Route::get('photos/{photo}', [SpacePhotoController::class, 'show'])
 // Painel de locais (admin vê todos; usuário comum, só os seus)
 Route::middleware('auth.token')->prefix('admin')->group(function () {
     Route::apiResource('spaces', SpaceController::class);
+    Route::get('spaces/{space}/reservations', [ReservationController::class, 'forSpace'])->whereNumber('space');
 
     Route::post('spaces/{space}/photos', [SpacePhotoController::class, 'store']);
     Route::put('spaces/{space}/photos/order', [SpacePhotoController::class, 'reorder']);

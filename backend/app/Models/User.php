@@ -53,6 +53,11 @@ class User extends Authenticatable
         return $this->hasMany(SpaceReview::class);
     }
 
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(Reservation::class);
+    }
+
     public function apiTokens(): HasMany
     {
         return $this->hasMany(ApiToken::class);

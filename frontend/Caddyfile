@@ -1,0 +1,38 @@
+{
+	admin off
+}
+
+# SITE_ADDRESS=meusite.com.br liga HTTPS automático (Let's Encrypt). Padrão ":80" (HTTP, para testes locais).
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(self)"
+		-Server
+	}
+
+	handle /api/* {
+		request_body {
+			max_size 64MB
+		}
+		reverse_proxy app:8080
+	}
+
+	handle /up {
+		reverse_proxy app:8080
+	}
+
+	handle {
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@html not path /assets/*
+		header @html Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

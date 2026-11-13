@@ -1,4 +1,4 @@
-xname: coworking
+name: coworking
 
 networks:
   app-network:
