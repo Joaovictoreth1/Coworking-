@@ -4,15 +4,12 @@ import { AuthContext, type AuthContextValue, type RegisterData } from './context
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState<boolean>(() => Boolean(tokenStorage.get()))
 
     // Restaura a sessão ao abrir o app
     useEffect(() => {
         const token = tokenStorage.get()
-        if (!token) {
-            setLoading(false)
-            return
-        }
+        if (!token) return
 
         let cancelled = false
         authApi

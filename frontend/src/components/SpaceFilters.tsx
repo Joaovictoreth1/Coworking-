@@ -1,15 +1,14 @@
 import { useId } from 'react'
-import { PRICE_TYPES, SORT_OPTIONS, type PriceType, type SortKey } from '../lib/spaces'
+import {
+    PRICE_TYPES,
+    SORT_OPTIONS,
+    hasPriceFilter,
+    type FilterState,
+    type SortKey,
+} from '../lib/spaces'
 import { inputClass } from '../lib/ui'
 
 // --- Tipos e Interfaces ---
-export interface FilterState {
-    priceType: PriceType | ''
-    minPrice: string
-    maxPrice: string
-    sort: SortKey
-}
-
 interface PriceInputProps {
     label: string
     value: string
@@ -22,18 +21,6 @@ interface SpaceFiltersProps {
     onChange: (next: FilterState) => void
     onClear: () => void
 }
-
-// --- Constantes e Utilitários ---
-export const EMPTY_FILTERS: FilterState = { 
-    priceType: '', 
-    minPrice: '', 
-    maxPrice: '', 
-    sort: 'recent' 
-}
-
-/** Há filtro de preço ligado? (a ordenação não conta: não esconde nenhum resultado) */
-export const hasPriceFilter = (f: FilterState) => 
-    f.priceType !== '' || f.minPrice !== '' || f.maxPrice !== ''
 
 // --- Componentes Menores ---
 function PriceInput({ label, value, onChange, disabled = false }: PriceInputProps) {

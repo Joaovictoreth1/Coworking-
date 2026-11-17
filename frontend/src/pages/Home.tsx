@@ -4,11 +4,18 @@ import { Alert } from '../components/admin/FormControls'
 import ComponentBody from '../components/ComponentBody'
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
 import SpaceCard from '../components/SpaceCard'
-import SpaceFilters, { EMPTY_FILTERS, hasPriceFilter, type FilterState } from '../components/SpaceFilters'
+import SpaceFilters from '../components/SpaceFilters'
 import { ApiError } from '../lib/api'
 import { useFavoriteToggle } from '../lib/favorites'
 import { href } from '../lib/route'
-import { publicSpacesApi, type Paginated, type Space } from '../lib/spaces'
+import {
+    EMPTY_FILTERS,
+    hasPriceFilter,
+    publicSpacesApi,
+    type FilterState,
+    type Paginated,
+    type Space,
+} from '../lib/spaces'
 import { inputClass, primaryButton, secondaryButton } from '../lib/ui'
 
 export default function Home() {
