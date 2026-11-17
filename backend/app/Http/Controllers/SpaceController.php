@@ -34,6 +34,10 @@ class SpaceController extends Controller
 
     public function store(SpaceRequest $request): JsonResponse
     {
+        if (! $request->user()->isAdmin()) {
+            abort(403, 'Acesso restrito a administradores.');
+        }
+
         $space = Space::create([
             ...$request->validated(),
             'user_id' => $request->user()->id,

@@ -68,7 +68,9 @@ export default function Reviews({
 }) {
     const { user } = useAuth()
     const onSummary = useRef(onSummaryChange)
-    onSummary.current = onSummaryChange
+    useEffect(() => {
+        onSummary.current = onSummaryChange
+    }, [onSummaryChange])
 
     const [items, setItems] = useState<Review[]>([])
     const [summary, setSummary] = useState<ReviewSummary | null>(null)
@@ -106,11 +108,11 @@ export default function Reviews({
                 setError(err instanceof ApiError ? err.message : 'Não foi possível carregar as avaliações.'),
             )
             .finally(() => setLoading(false))
-    }, [spaceId, user?.id])
+    }, [spaceId])
 
     useEffect(() => {
         load()
-    }, [load])
+    }, [load, user?.id])
 
     async function loadMore() {
         setLoadingMore(true)

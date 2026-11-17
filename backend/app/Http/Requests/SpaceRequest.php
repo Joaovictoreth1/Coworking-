@@ -9,7 +9,7 @@ class SpaceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // acesso já protegido pelos middlewares "auth.token" e "admin"
+        return $this->user()?->isAdmin() ?? false;
     }
 
     protected function prepareForValidation(): void

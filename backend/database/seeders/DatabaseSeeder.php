@@ -2,9 +2,11 @@
 
 namespace Database\Seeders;
 
+use App\Models\Booking;
 use App\Models\Space;
 use App\Models\SpaceReview;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -120,6 +122,7 @@ class DatabaseSeeder extends Seeder
 
         $this->createReviews($users);
         $this->createFavorites($users);
+        $this->createBookings($users);
 
         $this->command?->info('Admin: '.self::ADMIN_EMAIL.' | Usuários: '
             .implode(', ', array_column(self::USERS, 1)).' | Senha de todos: '.self::PASSWORD);
@@ -260,6 +263,65 @@ class DatabaseSeeder extends Seeder
                     ]);
                 }
             }
+        }
+    }
+
+    /** Algumas reservas de exemplo para popular métricas e o histórico do cliente. */
+    private function createBookings(array $users): void
+    {
+        if (Booking::exists()) {
+            return;
+        }
+
+        $spaces = Space::query()->where('is_active', true)->take(8)->get();
+        if ($spaces->isEmpty()) {
+            return;
+        }
+
+        foreach ($users as $i => $user) {
+            $space = $spaces[$i % $spaces->count()];
+            $hourly = (float) ($space->hourly_price ?? 50.0);
+
+            // 1. Reserva Concluída no Passado
+            $pastStart = Carbon::now()->subDays(5 + $i)->setHour(14)->setMinute(0)->setSecond(0);
+            $pastEnd = (clone $pastStart)->addHours(3);
+            Booking::create([
+                'user_id' => $user->id,
+                'space_id' => $space->id,
+                'start_time' => $pastStart,
+                'end_time' => $pastEnd,
+                'total_price' => round($hourly * 3, 2),
+                'status' => Booking::STATUS_COMPLETED,
+                'notes' => 'Reunião de alinhamento com equipe de produto.',
+            ]);
+
+            // 2. Reserva Ativa Futura (Confirmada)
+            $futureStart = Carbon::now()->addDays(2 + $i)->setHour(9)->setMinute(0)->setSecond(0);
+            $futureEnd = (clone $futureStart)->addHours(4);
+            $altSpace = $spaces[($i + 1) % $spaces->count()];
+            $altHourly = (float) ($altSpace->hourly_price ?? 60.0);
+            Booking::create([
+                'user_id' => $user->id,
+                'space_id' => $altSpace->id,
+                'start_time' => $futureStart,
+                'end_time' => $futureEnd,
+                'total_price' => round($altHourly * 4, 2),
+                'status' => Booking::STATUS_CONFIRMED,
+                'notes' => 'Gravação de podcast e dinâmica em grupo.',
+            ]);
+
+            // 3. Reserva Futura Pendente
+            $pendingStart = Carbon::now()->addDays(7 + $i)->setHour(10)->setMinute(0)->setSecond(0);
+            $pendingEnd = (clone $pendingStart)->addHours(2);
+            Booking::create([
+                'user_id' => $user->id,
+                'space_id' => $space->id,
+                'start_time' => $pendingStart,
+                'end_time' => $pendingEnd,
+                'total_price' => round($hourly * 2, 2),
+                'status' => Booking::STATUS_PENDING,
+                'notes' => 'Apresentação para investidores.',
+            ]);
         }
     }
 

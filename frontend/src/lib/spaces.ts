@@ -95,6 +95,60 @@ export interface ReviewSummary {
 export type PriceType = 'free' | 'hourly' | 'daily' | 'monthly'
 export type SortKey = 'recent' | 'price_asc' | 'price_desc' | 'rating'
 
+export interface FilterState {
+    priceType: PriceType | ''
+    minPrice: string
+    maxPrice: string
+    sort: SortKey
+}
+
+export const EMPTY_FILTERS: FilterState = {
+    priceType: '',
+    minPrice: '',
+    maxPrice: '',
+    sort: 'recent',
+}
+
+export const hasPriceFilter = (f: FilterState) =>
+    f.priceType !== '' || f.minPrice !== '' || f.maxPrice !== ''
+
+export interface Booking {
+    id: number
+    space_id: number
+    space_name?: string
+    user_id: number
+    user_name?: string
+    user_email?: string
+    start_time: string
+    end_time: string
+    duration_hours: number
+    total_price: number
+    status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
+    notes: string | null
+    can_cancel: boolean
+    created_at: string
+    space?: {
+        id: number
+        name: string
+        city: string
+        state: string
+        hourly_price: number | null
+        daily_price: number | null
+        is_free: boolean
+    }
+}
+
+export interface AdminMetrics {
+    total_bookings: number
+    confirmed_bookings: number
+    cancelled_bookings: number
+    completed_bookings: number
+    total_revenue: number
+    active_spaces: number
+    total_spaces: number
+    occupancy_rate: number
+}
+
 export const PRICE_TYPES: { value: PriceType | ''; label: string; unit: string }[] = [
     { value: '', label: 'Todos', unit: '' },
     { value: 'hourly', label: 'Por hora', unit: '/hora' },

@@ -151,10 +151,20 @@ function UserMenu() {
                             <p className="truncate text-xs text-slate-600">{user.email}</p>
                         </div>
                         <hr className="my-1 border-slate-200" />
+                        <a href={href('my-bookings')} onClick={close} className={menuItem}>
+                            <span className="text-sm">📅</span>
+                            Minhas reservas
+                        </a>
                         <a href={href('favorites')} onClick={close} className={menuItem}>
                             <HeartIcon className="h-4 w-4" />
                             Meus favoritos
                         </a>
+                        {user.is_admin && (
+                            <a href={href('admin-dashboard')} onClick={close} className={menuItem}>
+                                <span className="text-sm">📊</span>
+                                Dashboard Admin
+                            </a>
+                        )}
                         <a href={href('spaces')} onClick={close} className={menuItem}>
                             <MapPinIcon className="h-4 w-4" />
                             {user.is_admin ? 'Gerenciar locais' : 'Meus locais'}

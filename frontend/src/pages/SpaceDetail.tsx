@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Alert } from '../components/admin/FormControls'
+import { BookingWidget } from '../components/BookingWidget'
 import ComponentBody from '../components/ComponentBody'
 import FavoriteButton from '../components/FavoriteButton'
 import { ArrowLeftIcon, CheckIcon, ImageIcon, MapPinIcon, UserIcon } from '../components/icons'
@@ -12,10 +13,7 @@ import {
     WEEKDAYS,
     amenityLabel,
     formatAddress,
-    formatBRL,
     formatRating,
-    joinList,
-    priceList,
     publicSpacesApi,
     type DaySchedule,
     type ReviewSummary,
@@ -260,45 +258,7 @@ export default function SpaceDetail({ id }: { id: number }) {
                         />
                     </div>
 
-                    <aside className="lg:sticky lg:top-24 lg:self-start">
-                        <div className="rounded-md border border-slate-200 bg-white p-5">
-                            <h2 className="font-display text-lg font-semibold text-slate-900">Preços</h2>
-                            {space.is_free ? (
-                                <>
-                                    <p className="mt-4 text-2xl font-semibold text-emerald-700">
-                                        Gratuito
-                                    </p>
-                                    <p className="mt-2 text-sm text-slate-600">
-                                        Entrada livre, sem cobrança. Confira os horários de funcionamento
-                                        e as regras de uso do local.
-                                    </p>
-                                </>
-                            ) : (
-                                <>
-                                    <dl className="mt-4 space-y-3">
-                                        {priceList(space).map((p) => (
-                                            <div key={p.key} className="flex items-baseline justify-between">
-                                                <dt className="text-slate-600">{p.label}</dt>
-                                                <dd className="text-2xl font-semibold text-slate-900">
-                                                    {formatBRL(p.value)}
-                                                </dd>
-                                            </div>
-                                        ))}
-                                    </dl>
-                                    <p className="mt-4 text-xs text-slate-500">
-                                        {joinList(
-                                            [
-                                                space.hourly_price !== null && 'locação por hora',
-                                                space.daily_price !== null && 'locação por dia',
-                                                space.monthly_price !== null && 'pacote mensal',
-                                            ].filter((x): x is string => x !== false),
-                                        ).replace(/^./, (c) => c.toUpperCase())}{' '}
-                                        disponível neste local.
-                                    </p>
-                                </>
-                            )}
-                        </div>
-                    </aside>
+                    <BookingWidget space={space} />
                 </div>
             )}
         </ComponentBody>
