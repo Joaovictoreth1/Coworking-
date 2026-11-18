@@ -78,6 +78,12 @@ class Booking extends Model
             ->when($excludeId !== null, fn (Builder $q) => $q->where('id', '!=', $excludeId));
     }
 
+    public function getVoucherCodeAttribute(): string
+    {
+        $dateStr = $this->start_time ? $this->start_time->format('Ymd') : date('Ymd');
+        return sprintf('CWK-%s-%05d', $dateStr, $this->id);
+    }
+
     public function canBeCancelledBy(User $user): bool
     {
         if ($this->status === self::STATUS_CANCELLED || $this->status === self::STATUS_COMPLETED) {

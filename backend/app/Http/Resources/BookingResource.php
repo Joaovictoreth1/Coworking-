@@ -29,6 +29,7 @@ class BookingResource extends JsonResource
                 : 0,
             'total_price' => (float) $this->total_price,
             'status' => $this->status,
+            'voucher_code' => $this->voucher_code,
             'notes' => $this->notes,
             'can_cancel' => $currentUser ? $this->canBeCancelledBy($currentUser) : false,
             'created_at' => $this->created_at?->toIso8601String(),
