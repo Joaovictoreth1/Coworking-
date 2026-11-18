@@ -1,6 +1,7 @@
 # 🏢 Coworking Platform — Sistema Completo de Gestão e Reservas
 
-[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-30%20passed%20%2F%20124%20assertions-emerald?style=flat-square&logo=php)](backend/)
+[![CI — Continuous Integration](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml/badge.svg)](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-36%20passed%20%2F%20148%20assertions-emerald?style=flat-square&logo=php)](backend/)
 [![Frontend Build](https://img.shields.io/badge/Frontend-Vite%20%2B%20React%2019%20Build%20OK-blue?style=flat-square&logo=react)](frontend/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Type%20Safe-blue?style=flat-square&logo=typescript)](frontend/)
 [![Laravel](https://img.shields.io/badge/Laravel-13.x%20(PHP%208.4)-red?style=flat-square&logo=laravel)](backend/)

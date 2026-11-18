@@ -147,7 +147,6 @@ class Space extends Model
     {
         return $this->hasMany(Booking::class);
     }
-    }
 
     public function favoritedBy(): BelongsToMany
     {
