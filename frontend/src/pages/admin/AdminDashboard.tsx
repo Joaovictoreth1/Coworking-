@@ -57,6 +57,12 @@ export default function AdminDashboard() {
 
     const bookings = bookingsData?.data ?? []
 
+    const totalB = metrics?.total_bookings ?? 0
+    const confirmedPct = totalB > 0 ? Math.round(((metrics?.confirmed_bookings ?? 0) / totalB) * 100) : 0
+    const completedPct = totalB > 0 ? Math.round(((metrics?.completed_bookings ?? 0) / totalB) * 100) : 0
+    const cancelledPct = totalB > 0 ? Math.round(((metrics?.cancelled_bookings ?? 0) / totalB) * 100) : 0
+    const pendingPct = Math.max(0, 100 - confirmedPct - completedPct - cancelledPct)
+
     return (
         <ComponentBody>
             <div className="max-w-7xl mx-auto py-4 space-y-8">
@@ -176,6 +182,93 @@ export default function AdminDashboard() {
                                 </span>
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* Barra Visual de Distribuição de Status */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                            <h3 className="text-sm font-bold text-slate-900">
+                                Distribuição Geral de Reservas
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Proporção visual dos agendamentos por status atual no sistema
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter(statusFilter === 'confirmed' ? '' : 'confirmed')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                                    statusFilter === 'confirmed'
+                                        ? 'bg-emerald-50 border-emerald-300 font-bold text-emerald-800'
+                                        : 'border-slate-100 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                Confirmadas ({confirmedPct}%)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter(statusFilter === 'pending' ? '' : 'pending')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                                    statusFilter === 'pending'
+                                        ? 'bg-amber-50 border-amber-300 font-bold text-amber-800'
+                                        : 'border-slate-100 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                Pendentes ({pendingPct}%)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter(statusFilter === 'completed' ? '' : 'completed')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                                    statusFilter === 'completed'
+                                        ? 'bg-indigo-50 border-indigo-300 font-bold text-indigo-800'
+                                        : 'border-slate-100 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                                Concluídas ({completedPct}%)
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStatusFilter(statusFilter === 'cancelled' ? '' : 'cancelled')}
+                                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
+                                    statusFilter === 'cancelled'
+                                        ? 'bg-rose-50 border-rose-300 font-bold text-rose-800'
+                                        : 'border-slate-100 hover:bg-slate-50 text-slate-600'
+                                }`}
+                            >
+                                <span className="w-2 h-2 rounded-full bg-rose-400" />
+                                Canceladas ({cancelledPct}%)
+                            </button>
+                        </div>
+                    </div>
+                    {/* Barra Empilhada Multicor */}
+                    <div className="w-full h-3 rounded-full bg-slate-100 flex overflow-hidden shadow-inner">
+                        <div
+                            style={{ width: `${confirmedPct}%` }}
+                            className="bg-emerald-500 transition-all duration-500"
+                            title={`Confirmadas: ${confirmedPct}%`}
+                        />
+                        <div
+                            style={{ width: `${pendingPct}%` }}
+                            className="bg-amber-500 transition-all duration-500"
+                            title={`Pendentes: ${pendingPct}%`}
+                        />
+                        <div
+                            style={{ width: `${completedPct}%` }}
+                            className="bg-indigo-500 transition-all duration-500"
+                            title={`Concluídas: ${completedPct}%`}
+                        />
+                        <div
+                            style={{ width: `${cancelledPct}%` }}
+                            className="bg-rose-400 transition-all duration-500"
+                            title={`Canceladas: ${cancelledPct}%`}
+                        />
                     </div>
                 </div>
 

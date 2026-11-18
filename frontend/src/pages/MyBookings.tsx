@@ -16,6 +16,14 @@ const TABS: { label: string; value: StatusFilter }[] = [
     { label: 'Canceladas', value: 'cancelled' },
 ]
 
+const CANCEL_REASONS = [
+    'Mudança de planos ou data',
+    'Encontrei outro horário ou local',
+    'Imprevisto profissional ou pessoal',
+    'Erro no agendamento do horário',
+    'Outro motivo',
+]
+
 function getStatusBadge(status: Booking['status']) {
     switch (status) {
         case 'confirmed':
@@ -69,13 +77,15 @@ function formatTime(iso: string) {
 export default function MyBookings() {
     const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
     const [cancellingId, setCancellingId] = useState<number | null>(null)
+    const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
+    const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
     const { data: bookings, isLoading, error } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
         try {
-            await cancelMutation.mutateAsync({ bookingId })
+            await cancelMutation.mutateAsync({ bookingId, reason: cancelReason })
             setCancellingId(null)
         } catch {
             // Tratado no onError do hook
@@ -92,7 +102,7 @@ export default function MyBookings() {
                             Minhas Reservas
                         </h1>
                         <p className="text-sm text-slate-500 mt-1">
-                            Acompanhe seu histórico, horários agendados e status de aprovação.
+                            Acompanhe seu histórico, horários agendados e comprovantes digitais.
                         </p>
                     </div>
                     <a href={href('home')} className={secondaryButton}>
@@ -172,6 +182,11 @@ export default function MyBookings() {
                                             )}
                                         </h2>
                                         {getStatusBadge(booking.status)}
+                                        {booking.voucher_code && (
+                                            <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600">
+                                                {booking.voucher_code}
+                                            </span>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
@@ -215,15 +230,28 @@ export default function MyBookings() {
                                         </span>
                                     </div>
 
-                                    {booking.can_cancel && (
+                                    <div className="flex items-center gap-2">
                                         <button
                                             type="button"
-                                            onClick={() => setCancellingId(booking.id)}
-                                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition cursor-pointer"
+                                            onClick={() => setSelectedVoucher(booking)}
+                                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer flex items-center gap-1.5"
                                         >
-                                            Cancelar Reserva
+                                            <span>📄</span> Comprovante
                                         </button>
-                                    )}
+
+                                        {booking.can_cancel && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setCancellingId(booking.id)
+                                                    setCancelReason(CANCEL_REASONS[0])
+                                                }}
+                                                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition cursor-pointer"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))
@@ -231,10 +259,91 @@ export default function MyBookings() {
                 </div>
             </div>
 
-            {/* Modal de Confirmação de Cancelamento */}
+            {/* Modal de Comprovante de Reserva */}
+            {selectedVoucher && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fadeIn">
+                    <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6">
+                        {/* Header do Comprovante */}
+                        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
+                            <div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                                    Comprovante de Reserva
+                                </span>
+                                <h2 className="text-xl font-extrabold text-slate-900 mt-0.5">
+                                    {selectedVoucher.space?.name || selectedVoucher.space_name || 'Espaço de Coworking'}
+                                </h2>
+                                <span className="font-mono text-xs text-slate-500">
+                                    Código: {selectedVoucher.voucher_code || `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`}
+                                </span>
+                            </div>
+                            <div>{getStatusBadge(selectedVoucher.status)}</div>
+                        </div>
+
+                        {/* Dados Detalhados */}
+                        <div className="space-y-3 text-sm bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-500 font-medium">Data Agendada:</span>
+                                <span className="font-bold text-slate-800">{formatDate(selectedVoucher.start_time)}</span>
+                            </div>
+                            <div className="flex justify-between items-center text-xs">
+                                <span className="text-slate-500 font-medium">Horário / Período:</span>
+                                <span className="font-bold text-slate-800">
+                                    {formatTime(selectedVoucher.start_time)} às {formatTime(selectedVoucher.end_time)} ({selectedVoucher.duration_hours}h)
+                                </span>
+                            </div>
+                            {selectedVoucher.space && (
+                                <div className="flex justify-between items-center text-xs">
+                                    <span className="text-slate-500 font-medium">Cidade / Estado:</span>
+                                    <span className="font-semibold text-slate-700">
+                                        {selectedVoucher.space.city} - {selectedVoucher.space.state}
+                                    </span>
+                                </div>
+                            )}
+                            <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200/60">
+                                <span className="text-slate-600 font-bold">Valor Total Pago/Previsto:</span>
+                                <span className="text-base font-extrabold text-slate-900">
+                                    {selectedVoucher.total_price === 0
+                                        ? 'Gratuito'
+                                        : formatCurrency(selectedVoucher.total_price)}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* QR Code / Validação de Check-in */}
+                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-dashed border-slate-200 text-center space-y-2">
+                            <div className="w-24 h-24 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-mono p-2 select-none shadow-sm">
+                                [ QR CHECK-IN ]
+                            </div>
+                            <p className="text-xs text-slate-500">
+                                Apresente este código na recepção ao chegar para liberar o seu acesso.
+                            </p>
+                        </div>
+
+                        {/* Ações do Modal */}
+                        <div className="flex items-center justify-end gap-3 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setSelectedVoucher(null)}
+                                className={secondaryButton}
+                            >
+                                Fechar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className={primaryButton}
+                            >
+                                🖨️ Imprimir / Salvar PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Confirmação de Cancelamento com Motivo */}
             {cancellingId !== null && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-                    <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fadeIn">
+                    <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
                         <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xl">
                             ⚠️
                         </div>
@@ -245,7 +354,27 @@ export default function MyBookings() {
                                 pode ser desfeita.
                             </p>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
+
+                        {/* Motivo do Cancelamento */}
+                        <div className="space-y-2 pt-2">
+                            <label htmlFor="cancel-reason" className="block text-xs font-bold text-slate-700">
+                                Selecione o motivo do cancelamento:
+                            </label>
+                            <select
+                                id="cancel-reason"
+                                value={cancelReason}
+                                onChange={(e) => setCancelReason(e.target.value)}
+                                className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                            >
+                                {CANCEL_REASONS.map((reason) => (
+                                    <option key={reason} value={reason}>
+                                        {reason}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-3">
                             <button
                                 type="button"
                                 onClick={() => setCancellingId(null)}
@@ -260,7 +389,7 @@ export default function MyBookings() {
                                 disabled={cancelMutation.isPending}
                                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
                             >
-                                {cancelMutation.isPending ? 'Cancelando...' : 'Sim, Cancelar'}
+                                {cancelMutation.isPending ? 'Cancelando...' : 'Confirmar Cancelamento'}
                             </button>
                         </div>
                     </div>
