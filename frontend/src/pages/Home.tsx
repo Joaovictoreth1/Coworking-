@@ -1,98 +1,34 @@
-import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '../auth/context'
 import { Alert } from '../components/admin/FormControls'
 import ComponentBody from '../components/ComponentBody'
 import { ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
+import { SpaceCardSkeleton } from '../components/Skeleton'
 import SpaceCard from '../components/SpaceCard'
 import SpaceFilters from '../components/SpaceFilters'
-import { ApiError } from '../lib/api'
-import { useFavoriteToggle } from '../lib/favorites'
+import { useSpaceSearch } from '../hooks/useSpaceSearch'
 import { href } from '../lib/route'
-import {
-    EMPTY_FILTERS,
-    hasPriceFilter,
-    publicSpacesApi,
-    type FilterState,
-    type Paginated,
-    type Space,
-} from '../lib/spaces'
 import { inputClass, primaryButton, secondaryButton } from '../lib/ui'
+
+const SKELETON_KEYS = ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7']
 
 export default function Home() {
     const { user } = useAuth()
-
-    const [items, setItems] = useState<Space[]>([])
-    const [meta, setMeta] = useState<Paginated<Space>['meta'] | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
-    const [search, setSearch] = useState('')
-    const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
-    // O que de fato foi enviado à API (busca e preços esperam o usuário parar de digitar)
-    const [applied, setApplied] = useState({ q: '', ...EMPTY_FILTERS })
-    const [page, setPage] = useState(1)
-
-    useEffect(() => {
-        const next = { q: search.trim(), ...filters }
-        const same = (Object.keys(next) as (keyof typeof next)[]).every((k) => next[k] === applied[k])
-        if (same) return
-
-        const typing =
-            next.q !== applied.q ||
-            next.minPrice !== applied.minPrice ||
-            next.maxPrice !== applied.maxPrice
-        const timer = setTimeout(
-            () => {
-                setApplied(next)
-                setPage(1)
-                setLoading(true)
-            },
-            typing ? 350 : 0,
-        )
-        return () => clearTimeout(timer)
-    }, [search, filters, applied])
-
-    useEffect(() => {
-        let cancelled = false
-        publicSpacesApi
-            .list({
-                page,
-                q: applied.q,
-                priceType: applied.priceType,
-                minPrice: applied.minPrice,
-                maxPrice: applied.maxPrice,
-                sort: applied.sort,
-            })
-            .then((res) => {
-                if (cancelled) return
-                setItems(res.data)
-                setMeta(res.meta)
-                setError('')
-            })
-            .catch((err) => {
-                if (cancelled) return
-                setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os locais.')
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false)
-            })
-        return () => {
-            cancelled = true
-        }
-    }, [page, applied, user?.id])
-
-    const applyFavorite = useCallback((id: number, favorite: boolean) => {
-        setItems((list) => list.map((s) => (s.id === id ? { ...s, is_favorite: favorite } : s)))
-    }, [])
-    const favorites = useFavoriteToggle(applyFavorite)
-
-    const filtersOn = hasPriceFilter(applied) || applied.q !== ''
-    const clearFilters = () => setFilters((f) => ({ ...EMPTY_FILTERS, sort: f.sort }))
-
-    function goToPage(next: number) {
-        setPage(next)
-        setLoading(true)
-        window.scrollTo({ top: 0, behavior: 'smooth' })
-    }
+    const {
+        search,
+        setSearch,
+        filters,
+        setFilters,
+        clearFilters,
+        meta,
+        goToPage,
+        items,
+        isLoading,
+        isFetching,
+        errorMessage,
+        filtersOn,
+        hasActivePriceFilter,
+        favorites,
+    } = useSpaceSearch()
 
     return (
         <ComponentBody>
@@ -154,18 +90,19 @@ export default function Home() {
                         </Alert>
                     </div>
                 )}
-                {error ? (
-                    <Alert type="error">{error}</Alert>
-                ) : loading && items.length === 0 ? (
+
+                {errorMessage ? (
+                    <Alert type="error">{errorMessage}</Alert>
+                ) : isLoading ? (
                     <ul
                         className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
                         aria-busy="true"
+                        aria-label="Carregando locais"
                     >
-                        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                            <li
-                                key={i}
-                                className="h-80 animate-pulse rounded-md border border-slate-200 bg-white"
-                            />
+                        {SKELETON_KEYS.map((key) => (
+                            <li key={key} className="flex">
+                                <SpaceCardSkeleton />
+                            </li>
                         ))}
                     </ul>
                 ) : items.length === 0 ? (
@@ -178,7 +115,7 @@ export default function Home() {
                                 ? 'Tente outro termo ou ajuste a faixa de preço.'
                                 : 'Volte em breve.'}
                         </p>
-                        {hasPriceFilter(applied) && (
+                        {hasActivePriceFilter && (
                             <button
                                 type="button"
                                 onClick={clearFilters}
@@ -198,8 +135,9 @@ export default function Home() {
                         )}
                         <ul
                             className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${
-                                loading ? 'opacity-60' : ''
+                                isFetching ? 'opacity-60' : ''
                             }`}
+                            aria-busy={isFetching}
                         >
                             {items.map((space) => (
                                 <li key={space.id} className="flex">
@@ -211,7 +149,7 @@ export default function Home() {
                 )}
             </div>
 
-            {meta && meta.last_page > 1 && !error && (
+            {meta && meta.last_page > 1 && !errorMessage && (
                 <nav
                     aria-label="Paginação"
                     className="mt-8 flex items-center justify-between gap-3 text-sm text-slate-600"
