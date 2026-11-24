@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import ComponentBody from '../components/ComponentBody'
+import Modal from '../components/Modal'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
 import { href } from '../lib/route'
@@ -79,6 +80,8 @@ export default function MyBookings() {
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
+    const voucherTitleId = useId()
+    const cancelTitleId = useId()
 
     const { data: bookings, isLoading, error } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
@@ -261,15 +264,18 @@ export default function MyBookings() {
 
             {/* Modal de Comprovante de Reserva */}
             {selectedVoucher && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6">
+                <Modal
+                    onClose={() => setSelectedVoucher(null)}
+                    labelledBy={voucherTitleId}
+                    panelClassName="w-full max-w-lg space-y-6 rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl outline-none motion-safe:animate-pop sm:p-8"
+                >
                         {/* Header do Comprovante */}
                         <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                             <div>
                                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
                                     Comprovante de Reserva
                                 </span>
-                                <h2 className="text-xl font-extrabold text-slate-900 mt-0.5">
+                                <h2 id={voucherTitleId} className="text-xl font-extrabold text-slate-900 mt-0.5">
                                     {selectedVoucher.space?.name || selectedVoucher.space_name || 'Espaço de Coworking'}
                                 </h2>
                                 <span className="font-mono text-xs text-slate-500">
@@ -336,19 +342,22 @@ export default function MyBookings() {
                                 🖨️ Imprimir / Salvar PDF
                             </button>
                         </div>
-                    </div>
-                </div>
+                </Modal>
             )}
 
             {/* Modal de Confirmação de Cancelamento com Motivo */}
             {cancellingId !== null && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
+                <Modal
+                    onClose={() => setCancellingId(null)}
+                    busy={cancelMutation.isPending}
+                    labelledBy={cancelTitleId}
+                    panelClassName="w-full max-w-md space-y-4 rounded-3xl border border-slate-100 bg-white p-6 shadow-2xl outline-none motion-safe:animate-pop sm:p-7"
+                >
                         <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xl">
                             ⚠️
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-900">Cancelar Reserva?</h2>
+                            <h2 id={cancelTitleId} className="text-lg font-bold text-slate-900">Cancelar Reserva?</h2>
                             <p className="text-sm text-slate-500 mt-1">
                                 O horário selecionado será liberado para outros usuários. Esta ação não
                                 pode ser desfeita.
@@ -392,8 +401,7 @@ export default function MyBookings() {
                                 {cancelMutation.isPending ? 'Cancelando...' : 'Confirmar Cancelamento'}
                             </button>
                         </div>
-                    </div>
-                </div>
+                </Modal>
             )}
         </ComponentBody>
     )
