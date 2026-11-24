@@ -11,10 +11,3 @@ export const primaryButton =
 
 export const secondaryButton =
     'inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-200 px-5 font-medium text-slate-800 transition hover:bg-slate-100 disabled:opacity-60 cursor-pointer'
-
-export function formatCurrency(value: number): string {
-    return new Intl.NumberFormat('pt-BR', {
-        style: 'currency',
-        currency: 'BRL',
-    }).format(value)
-}

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError, bookingsApi, type BookingPayload, type BookingPreviewResult } from '../lib/api'
+import { ApiError } from '../lib/api'
+import { bookingsApi, type BookingPayload, type BookingPreviewResult } from '../lib/bookings'
 import type { AdminMetrics, Booking, Paginated } from '../lib/spaces'
 import { toast } from '../store/useToastStore'
 
@@ -8,7 +9,7 @@ export function useUserBookingsQuery(status?: string) {
         queryKey: ['bookings', status ?? 'all'],
         queryFn: async () => {
             const res = await bookingsApi.list(status)
-            return (res.data as unknown) as Booking[]
+            return res.data
         },
     })
 }
@@ -82,7 +83,7 @@ export function useAdminBookingsQuery(params?: {
         queryKey: ['admin-bookings', params],
         queryFn: async () => {
             const res = await bookingsApi.adminList(params)
-            return (res as unknown) as Paginated<Booking>
+            return res
         },
     })
 }
@@ -92,7 +93,7 @@ export function useAdminMetricsQuery() {
         queryKey: ['admin-metrics'],
         queryFn: async () => {
             const res = await bookingsApi.adminMetrics()
-            return (res as unknown) as AdminMetrics
+            return res
         },
         refetchInterval: 30000, // Atualiza a cada 30 segundos no dashboard
     })

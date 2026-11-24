@@ -1,19 +1,37 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth } from './auth/context'
 import { ToastContainer } from './components/Toast'
 import { navigate, useRoute, useRouteId, type Route } from './lib/route'
-import SpaceForm from './pages/admin/SpaceForm'
-import SpacesList from './pages/admin/SpacesList'
-import AdminDashboard from './pages/admin/AdminDashboard'
-import Favorites from './pages/Favorites'
 import Home from './pages/Home'
 import Login from './pages/Login'
-import MyBookings from './pages/MyBookings'
 import Register from './pages/Register'
-import SpaceDetail from './pages/SpaceDetail'
+
+// Caminho crítico (Home/Login/Register) entra no bundle inicial.
+// As demais rotas são carregadas sob demanda (code-splitting), aliviando o
+// primeiro carregamento — sobretudo os painéis admin, que são grandes.
+const SpaceDetail = lazy(() => import('./pages/SpaceDetail'))
+const Favorites = lazy(() => import('./pages/Favorites'))
+const MyBookings = lazy(() => import('./pages/MyBookings'))
+const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'))
+const SpacesList = lazy(() => import('./pages/admin/SpacesList'))
+const SpaceForm = lazy(() => import('./pages/admin/SpaceForm'))
 
 const ADMIN_ROUTES: Route[] = ['spaces', 'space-new', 'space-edit', 'admin-dashboard']
+
+function FullScreenLoader({ label }: { label: string }) {
+    return (
+        <main
+            className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600"
+            aria-busy="true"
+        >
+            <div className="flex items-center gap-3">
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+                <span>{label}</span>
+            </div>
+        </main>
+    )
+}
 
 function AppContent() {
     const { user, loading } = useAuth()
@@ -35,14 +53,7 @@ function AppContent() {
     }, [user, loading, isAuthRoute, isPrivateRoute, route])
 
     if (loading) {
-        return (
-            <main className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
-                <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                    <span>Carregando aplicação...</span>
-                </div>
-            </main>
-        )
+        return <FullScreenLoader label="Carregando aplicação..." />
     }
 
     if (!user && route === 'login') return <Login onGoRegister={() => navigate('register')} />
@@ -80,7 +91,9 @@ export default function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <AppContent />
+            <Suspense fallback={<FullScreenLoader label="Carregando..." />}>
+                <AppContent />
+            </Suspense>
             <ToastContainer />
         </QueryClientProvider>
     )

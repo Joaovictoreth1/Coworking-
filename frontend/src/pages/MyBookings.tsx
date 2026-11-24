@@ -3,8 +3,8 @@ import ComponentBody from '../components/ComponentBody'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
 import { href } from '../lib/route'
-import type { Booking } from '../lib/spaces'
-import { formatCurrency, primaryButton, secondaryButton } from '../lib/ui'
+import { formatBRL, type Booking } from '../lib/spaces'
+import { primaryButton, secondaryButton } from '../lib/ui'
 
 type StatusFilter = '' | 'confirmed' | 'pending' | 'completed' | 'cancelled'
 
@@ -226,7 +226,7 @@ export default function MyBookings() {
                                         <span className="text-xl font-bold text-slate-900">
                                             {booking.total_price === 0
                                                 ? 'Gratuito'
-                                                : formatCurrency(booking.total_price)}
+                                                : formatBRL(booking.total_price)}
                                         </span>
                                     </div>
 
@@ -304,7 +304,7 @@ export default function MyBookings() {
                                 <span className="text-base font-extrabold text-slate-900">
                                     {selectedVoucher.total_price === 0
                                         ? 'Gratuito'
-                                        : formatCurrency(selectedVoucher.total_price)}
+                                        : formatBRL(selectedVoucher.total_price)}
                                 </span>
                             </div>
                         </div>

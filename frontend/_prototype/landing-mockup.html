@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Coworking em São Paulo | Coworking Brasil</title>
+  <meta name="description" content="126 espaços de coworking em São Paulo: planos, facilidades e contato direto com cada espaço.">
+
+  <!-- Google Fonts: Source Sans 3 & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Leaflet CSS + MarkerCluster CSS para clusterização profissional -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="" />
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Source Sans 3"', '-apple-system', 'BlinkMacSystemFont', 'sans-serif'],
+            display: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            cwcyan: {
+              50: '#e0f7fa',
+              100: '#b2ebf2',
+              500: '#26c6da',
+              600: '#1e9faf',
+              700: '#00838f',
+            },
+            slatecw: {
+              50: '#f8fafc',
+              100: '#f3f5f7',
+              200: '#edf0f3',
+              400: '#90a4ae',
+              500: '#78909c',
+              600: '#607d8b',
+              700: '#455a64',
+              800: '#37474f',
+              900: '#263238',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Customizações do Mapa Leaflet & Clusters */
+    .leaflet-container {
+      font-family: 'Source Sans 3', sans-serif;
+      z-index: 10;
+    }
+    .custom-pin {
+      background-color: #26c6da;
+      border: 2.5px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(38, 50, 56, 0.38);
+      transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.18s ease;
+    }
+    .custom-pin:hover, .custom-pin.active {
+      background-color: #263238;
+      transform: scale(1.38);
+      z-index: 999 !important;
+    }
+    .custom-cluster {
+      background: rgba(38, 198, 218, 0.25);
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .custom-cluster-inner {
+      background: #1e9faf;
+      color: #ffffff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 800;
+      font-size: 13px;
+      width: 32px;
+      height: 32px;
+      border-radius: 9999px;
+      border: 2px solid #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 10px rgba(0, 131, 143, 0.4);
+    }
+    .leaflet-popup-content-wrapper {
+      border-radius: 10px;
+      padding: 0;
+      overflow: hidden;
+      box-shadow: 0 10px 28px rgba(38, 50, 56, 0.2);
+    }
+    .leaflet-popup-content {
+      margin: 0;
+      width: 230px !important;
+    }
+    /* Scrollbar discreta no painel de resultados */
+    .results-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .results-scroll::-webkit-scrollbar-track {
+      background: #f3f5f7;
+    }
+    .results-scroll::-webkit-scrollbar-thumb {
+      background: #cfd8dc;
+      border-radius: 3px;
+    }
+
+    /* ================= TRACED-STYLE FLUID ANIMATIONS ================= */
+    @keyframes ptlMarquee {
+      0% { transform: translate3d(0, 0, 0); }
+      100% { transform: translate3d(-50%, 0, 0); }
+    }
+    .ptl-ticker-track {
+      animation: ptlMarquee 34s linear infinite;
+      will-change: transform;
+    }
+    .ptl-ticker-track:hover {
+      animation-play-state: paused;
+    }
+
+    /* Onda de pontos nos botões/links estilo cta-dots */
+    @keyframes dotWave {
+      0%, 100% { transform: translateY(0) scale(1); opacity: 0.45; }
+      50% { transform: translateY(-4px) scale(1.65); opacity: 1; background-color: #26c6da; }
+    }
+    .cta-dots:hover .cta-dots__dot {
+      animation: dotWave 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation-delay: calc(var(--i) * 18ms);
+    }
+
+    /* Entrada escalonada suave dos cards */
+    @keyframes cardRevealUp {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 18px, 0) scale(0.985);
+        filter: blur(4px);
+      }
+      100% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+        filter: blur(0);
+      }
+    }
+    .cw-card-enter {
+      opacity: 0;
+      animation: cardRevealUp 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+      animation-delay: calc(var(--stagger, 0) * 45ms);
+    }
+
+    /* Transição suave para Modais e Dropdowns (Glassmorphism) */
+    @keyframes modalScaleIn {
+      0% { opacity: 0; transform: translate3d(0, 14px, 0) scale(0.97); }
+      100% { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+    }
+    .modal-animate-in {
+      animation: modalScaleIn 0.32s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    }
+
+    /* Sublinhado deslizante da esquerda para direita estilo footer Traced */
+    .traced-underline {
+      position: relative;
+    }
+    .traced-underline::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: -2px;
+      height: 1.5px;
+      background-color: currentColor;
+      transform: scaleX(0);
+      transform-origin: right;
+      transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .traced-underline:hover::after {
+      transform: scaleX(1);
+      transform-origin: left;
+    }
+
+    /* Pulso orgânico no ponto indicador ativo */
+    @keyframes softPulseDot {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(38, 198, 218, 0.45); }
+      50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(38, 198, 218, 0); }
+    }
+    .pulse-dot {
+      animation: softPulseDot 2.4s ease-in-out infinite;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ptl-ticker-track, .cw-card-enter, .modal-animate-in, .pulse-dot {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+        filter: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-white text-slatecw-900 antialiased overflow-x-hidden">
+
+  <!-- ================= HEADER (GLASSMORPHISM & TRACED MICRO-INTERACTIONS) ================= -->
+  <header id="main-header" class="sticky top-0 z-40 bg-white/85 backdrop-blur-xl border-b border-slatecw-200/80 h-[76px] lg:h-[88px] flex items-center transition-all duration-500">
+    <div class="w-full px-4 lg:px-8 flex items-center justify-between gap-4">
+      
+      <!-- Logo Coworking Brasil -->
+      <a href="#" class="flex items-center gap-2.5 shrink-0 group transition-transform duration-300 hover:scale-[1.02]">
+        <div class="size-10 rounded-xl bg-cwcyan-500 flex items-center justify-center text-white font-display font-extrabold text-xl shadow-sm group-hover:bg-cwcyan-600 transition-colors duration-300">
+          CW
+        </div>
+        <div class="flex flex-col leading-none">
+          <span class="font-display font-extrabold text-lg tracking-tight text-slatecw-900 group-hover:text-black transition-colors">coworking</span>
+          <span class="font-display font-bold text-xs uppercase tracking-widest text-cwcyan-600">brasil</span>
+        </div>
+      </a>
+
+      <!-- Desktop Navigation -->
+      <nav class="hidden lg:flex items-center gap-7 text-[15px] font-medium text-slatecw-800">
+        <a href="#sobre" onclick="openInfoModal('Sobre Coworking')" class="traced-underline hover:text-cwcyan-600 hover:scale-[1.02] transition-[color,transform] duration-250">Sobre Coworking</a>
+        <a href="#" class="text-cwcyan-600 font-semibold border-b-2 border-cwcyan-500 py-1">Espaços</a>
+        <a href="#eventos" onclick="openInfoModal('Eventos')" class="traced-underline hover:text-cwcyan-600 hover:scale-[1.02] transition-[color,transform] duration-250">Eventos</a>
+        <a href="#escritorio-virtual" onclick="openInfoModal('Escritório Virtual')" class="traced-underline hover:text-cwcyan-600 hover:scale-[1.02] transition-[color,transform] duration-250">Escritório Virtual</a>
+        <a href="#blog" onclick="openInfoModal('Blog')" class="traced-underline hover:text-cwcyan-600 hover:scale-[1.02] transition-[color,transform] duration-250">Blog</a>
+      </nav>
+
+      <!-- Desktop Actions -->
+      <div class="hidden lg:flex items-center gap-2.5">
+        <button type="button" id="saved-nav-btn" onclick="App.toggleSavedOnly()" class="h-9 px-3.5 rounded-xl border border-slatecw-200 bg-white/70 backdrop-blur-md text-slatecw-700 text-sm font-semibold hover:border-rose-300 hover:text-rose-600 hover:scale-[1.02] active:scale-100 transition-all duration-250 cursor-pointer flex items-center gap-1.5">
+          <span id="saved-heart-icon">♡</span>
+          <span>Salvos</span>
+          <span id="saved-count-badge" class="bg-slatecw-100 text-slatecw-700 text-xs px-1.5 py-0.2 rounded-full font-bold">0</span>
+        </button>
+        <button type="button" onclick="UI.openRegisterModal()" class="h-9 px-4 rounded-xl border border-cwcyan-500 text-cwcyan-600 text-sm font-semibold hover:bg-cwcyan-50 hover:scale-[1.02] active:scale-100 transition-all duration-250 cursor-pointer">
+          Cadastrar espaço
+        </button>
+        <button type="button" onclick="UI.openLoginModal()" class="h-9 px-4 rounded-xl border border-slatecw-400 text-slatecw-700 text-sm font-semibold hover:bg-slatecw-100 hover:scale-[1.02] active:scale-100 transition-all duration-250 cursor-pointer">
+          Entrar
+        </button>
+      </div>
+
+      <!-- Mobile Hamburger -->
+      <button id="mobile-menu-btn" type="button" aria-label="Abrir menu" class="lg:hidden p-2 rounded-md text-slatecw-800 hover:bg-slatecw-100">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Mobile Dropdown Menu -->
+    <div id="mobile-menu" class="hidden lg:hidden absolute top-full inset-x-0 bg-white border-b border-slatecw-200 shadow-lg z-50">
+      <ul class="divide-y divide-slatecw-200 text-base font-medium">
+        <li><a href="#" class="block px-6 py-3.5 text-cwcyan-600 font-semibold">Espaços em São Paulo</a></li>
+        <li><button type="button" onclick="openInfoModal('Sobre Coworking')" class="w-full text-left px-6 py-3.5 hover:bg-slatecw-50">Sobre Coworking</button></li>
+        <li><button type="button" onclick="openInfoModal('Escritório Virtual')" class="w-full text-left px-6 py-3.5 hover:bg-slatecw-50">Escritório Virtual</button></li>
+        <li><button type="button" onclick="openInfoModal('Eventos')" class="w-full text-left px-6 py-3.5 hover:bg-slatecw-50">Eventos</button></li>
+      </ul>
+      <div class="p-4 bg-slatecw-50 flex flex-col gap-2">
+        <button type="button" onclick="openRegisterModal()" class="w-full h-10 rounded-md bg-cwcyan-500 text-white font-semibold text-sm">Cadastrar espaço</button>
+        <button type="button" onclick="openLoginModal()" class="w-full h-10 rounded-md border border-slatecw-400 bg-white text-slatecw-800 font-semibold text-sm">Entrar</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN SPLIT LAYOUT (MAP + RESULTS) ================= -->
+  <main class="relative flex flex-col lg:flex-row lg:h-[calc(100vh-88px)]">
+    
+    <!-- LEFT PANE: INTERACTIVE MAP -->
+    <aside id="map-pane" aria-label="Mapa dos espaços" class="hidden lg:block lg:w-[37%] xl:w-[39%] h-[calc(100vh-76px)] lg:h-full bg-slatecw-200 relative shrink-0 border-r border-slatecw-200">
+      <div id="spaces-map" class="w-full h-full"></div>
+      <div class="absolute top-3 right-3 z-20 flex flex-col gap-1.5">
+        <button type="button" onclick="MapService.fitToFiltered(true)" class="bg-white/95 backdrop-blur-sm hover:bg-white px-3 py-1.5 rounded-md shadow-md border border-slatecw-200 text-xs font-semibold text-slatecw-800 hover:text-cwcyan-600 transition cursor-pointer">
+          Ajustar zoom aos resultados
+        </button>
+      </div>
+      <div class="absolute bottom-3 left-3 right-3 z-20 bg-white/95 backdrop-blur-sm px-3.5 py-2 rounded-lg shadow border border-slatecw-200/80 text-xs text-slatecw-700 flex items-center justify-between">
+        <span>Explore os pinos ou clusters no mapa</span>
+        <button type="button" onclick="MapService.resetBounds()" class="text-cwcyan-600 font-bold hover:underline cursor-pointer">Centralizar SP</button>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANE: SEARCH, FILTERS & SPACES GRID -->
+    <section id="results-pane" class="flex-1 h-full overflow-y-auto results-scroll bg-gradient-to-b from-slatecw-50/70 via-white to-white relative">
+      
+      <!-- TRACED-STYLE PILLS TIMELINE & MARQUEE STRIP -->
+      <div class="relative w-full pt-4 pb-2 overflow-hidden border-b border-slatecw-200/60 bg-gradient-to-r from-slatecw-50 via-cwcyan-50/30 to-slatecw-50">
+        <div class="max-w-[1100px] mx-auto px-4 sm:px-8 flex items-center justify-between gap-4 relative z-10 mb-2">
+          <!-- Auto-sizing Pill Indicator (igual ao pillsTimeline da Traced) -->
+          <div class="inline-flex items-center gap-2.5 bg-white/85 backdrop-blur-md border border-slatecw-200/90 shadow-xs rounded-full py-1.5 pl-3 pr-4">
+            <span id="timeline-pill-dot" class="block shrink-0 size-2.5 rounded-full pulse-dot transition-colors duration-500" style="background-color: #26c6da"></span>
+            <div id="timeline-pill-wrapper" class="overflow-hidden transition-[width] duration-400 ease-out whitespace-nowrap">
+              <span id="timeline-pill-text" class="text-xs font-display font-bold text-slatecw-800 tracking-tight">33 espaços verificados em SP</span>
+            </div>
+          </div>
+
+          <!-- CTA com linha de pontos ondulantes estilo cta-dots -->
+          <button type="button" onclick="App.copyShareLink(this)" class="cta-dots relative inline-flex items-center gap-1.5 text-xs font-semibold text-slatecw-700 hover:text-cwcyan-600 pb-2 transition-colors cursor-pointer">
+            <span>🔗</span>
+            <span>Compartilhar busca</span>
+            <span id="share-cta-dots" class="cta-dots__line absolute inset-x-0 bottom-0 flex items-end gap-[2px] h-1.5 overflow-hidden pointer-events-none" aria-hidden="true"></span>
+          </button>
+        </div>
+
+        <!-- Linha contínua com cápsulas em movimento infinito (ptl-ticker) -->
+        <div class="relative w-full h-2.5 flex items-center overflow-hidden opacity-75" aria-hidden="true">
+          <span class="block absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-slatecw-400/30"></span>
+          <div id="timeline-marquee-track" class="ptl-ticker-track flex w-max items-center"></div>
+        </div>
+      </div>
+
+      <div class="max-w-[1100px] px-4 py-6 sm:px-8 sm:py-7 pb-28 lg:pb-20 relative">
+        <!-- Vertical Traced Timeline Rail decorativo no desktop -->
+        <div class="hidden xl:flex flex-col items-center absolute left-2.5 top-7 bottom-24 w-2 pointer-events-none opacity-45" aria-hidden="true">
+          <span class="block w-1.5 h-8 rounded-full bg-cwcyan-500/50 shrink-0"></span>
+          <span class="block w-px grow border-l border-dashed border-slatecw-400"></span>
+          <span class="block w-1.5 h-8 rounded-full bg-slatecw-400/50 shrink-0"></span>
+        </div>
+        
+        <!-- Title & Breadcrumb -->
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-5">
+          <div>
+            <nav aria-label="Breadcrumb" class="text-xs text-slatecw-500 mb-1 flex items-center gap-1.5">
+              <span>Brasil</span> <span>/</span> <span>São Paulo</span> <span>/</span> <span class="text-slatecw-800 font-semibold">Capital</span>
+            </nav>
+            <h1 class="font-display text-2xl sm:text-3xl font-extrabold text-slatecw-900 tracking-tight">
+              Coworking em São Paulo
+            </h1>
+          </div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-medium text-slatecw-500 bg-slatecw-100/80 px-3 py-1 rounded-full self-start sm:self-auto">
+            <span class="size-1.5 rounded-full bg-emerald-500"></span>
+            Atualizado em tempo real
+          </span>
+        </div>
+          <button type="button" onclick="App.copyShareLink(this)" class="self-start sm:self-auto inline-flex items-center gap-1.5 text-xs font-semibold text-slatecw-600 hover:text-cwcyan-600 border border-slatecw-200 hover:border-cwcyan-500 rounded-md px-3 py-1.5 transition cursor-pointer">
+            <span>🔗</span>
+            <span>Compartilhar busca</span>
+          </button>
+        </div>
+
+        <!-- Search Bar + Popular Neighborhoods -->
+        <form id="search-form" class="mb-5 flex flex-col gap-2.5">
+          <div class="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div class="relative flex items-center flex-1 max-w-[480px]">
+              <svg class="w-4 h-4 text-slatecw-400 absolute left-3.5 pointer-events-none" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>
+              </svg>
+              <input 
+                id="search-input" 
+                type="text" 
+                autocomplete="off"
+                placeholder="Buscar por nome, bairro ou região..." 
+                class="w-full h-10 pl-10 pr-16 rounded-lg border border-slatecw-400 text-slatecw-900 text-sm sm:text-base focus:border-cwcyan-500 focus:ring-2 focus:ring-cwcyan-500/20 focus:outline-none transition"
+              />
+              <button id="clear-search-btn" type="button" onclick="App.clearSearch()" class="hidden absolute right-9 text-slatecw-500 hover:text-slatecw-800 p-1.5 text-xs font-bold cursor-pointer" title="Limpar busca">
+                ✕
+              </button>
+              <button type="submit" aria-label="Pesquisar" class="absolute right-0 h-10 w-10 flex items-center justify-center text-slatecw-600 hover:text-cwcyan-600 cursor-pointer">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Popular Neighborhood Shortcuts -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 text-xs">
+              <span class="text-slatecw-500 shrink-0 font-medium">Bairros:</span>
+              <button type="button" onclick="App.quickSearch('Pinheiros')" class="shrink-0 px-2.5 py-1 rounded-md bg-slatecw-100 hover:bg-cwcyan-50 text-slatecw-700 hover:text-cwcyan-700 font-medium transition cursor-pointer">Pinheiros</button>
+              <button type="button" onclick="App.quickSearch('Itaim Bibi')" class="shrink-0 px-2.5 py-1 rounded-md bg-slatecw-100 hover:bg-cwcyan-50 text-slatecw-700 hover:text-cwcyan-700 font-medium transition cursor-pointer">Itaim Bibi</button>
+              <button type="button" onclick="App.quickSearch('Brooklin')" class="shrink-0 px-2.5 py-1 rounded-md bg-slatecw-100 hover:bg-cwcyan-50 text-slatecw-700 hover:text-cwcyan-700 font-medium transition cursor-pointer">Brooklin</button>
+              <button type="button" onclick="App.quickSearch('Vila Olímpia')" class="shrink-0 px-2.5 py-1 rounded-md bg-slatecw-100 hover:bg-cwcyan-50 text-slatecw-700 hover:text-cwcyan-700 font-medium transition cursor-pointer">Vila Olímpia</button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Feature Filters Row -->
+        <div class="mb-6">
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-sm font-medium text-slatecw-600 mr-1 hidden sm:inline">Facilidades:</span>
+            
+            <!-- Quick Filter Chips -->
+            <button type="button" data-feature="has_meeting_room" onclick="App.toggleFeature('has_meeting_room')" class="filter-chip text-xs sm:text-sm px-3.5 py-1.5 rounded-full border border-slatecw-400 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 transition-colors cursor-pointer">
+              Sala de reuniões
+            </button>
+            <button type="button" data-feature="is_24" onclick="App.toggleFeature('is_24')" class="filter-chip text-xs sm:text-sm px-3.5 py-1.5 rounded-full border border-slatecw-400 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 transition-colors cursor-pointer">
+              Acesso 24h
+            </button>
+            <button type="button" data-feature="offers_legal_address" onclick="App.toggleFeature('offers_legal_address')" class="filter-chip text-xs sm:text-sm px-3.5 py-1.5 rounded-full border border-slatecw-400 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 transition-colors cursor-pointer">
+              Endereço fiscal
+            </button>
+            <button type="button" data-feature="wheelchair_accessible" onclick="App.toggleFeature('wheelchair_accessible')" class="filter-chip text-xs sm:text-sm px-3.5 py-1.5 rounded-full border border-slatecw-400 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 transition-colors cursor-pointer">
+              Acessível
+            </button>
+            <button type="button" data-feature="has_bike_parking" onclick="App.toggleFeature('has_bike_parking')" class="filter-chip text-xs sm:text-sm px-3.5 py-1.5 rounded-full border border-slatecw-400 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 transition-colors cursor-pointer">
+              Bicicletário
+            </button>
+
+            <!-- More Filters Button & Popover -->
+            <div class="relative" id="filters-popover-wrapper">
+              <button type="button" id="more-filters-btn" aria-expanded="false" onclick="UI.toggleFiltersPanel()" class="text-sm font-semibold text-cwcyan-600 hover:text-cwcyan-700 px-2.5 py-1.5 rounded-md hover:bg-cwcyan-50/70 transition cursor-pointer flex items-center gap-1.5">
+                <span>Mais filtros</span>
+                <span id="active-filter-badge" class="hidden bg-cwcyan-500 text-white text-[11px] font-bold px-1.5 py-0.2 rounded-full">0</span>
+              </button>
+
+              <!-- Floating Filter Panel -->
+              <div id="filters-panel" role="dialog" aria-label="Todas as facilidades" class="hidden fixed inset-0 z-50 lg:absolute lg:inset-auto lg:top-11 lg:left-0 lg:w-[360px] bg-white lg:border lg:border-slatecw-200 lg:rounded-xl lg:shadow-2xl p-5 flex flex-col">
+                <div class="flex items-center justify-between border-b border-slatecw-200 pb-3 mb-3">
+                  <h3 class="font-display font-bold text-base text-slatecw-900">Todas as 22 facilidades</h3>
+                  <button type="button" onclick="UI.toggleFiltersPanel(false)" class="text-slatecw-500 hover:text-slatecw-900 text-lg leading-none p-1 cursor-pointer">✕</button>
+                </div>
+                <ul id="all-features-list" class="flex-1 overflow-y-auto space-y-2.5 max-h-[65vh] lg:max-h-[290px] pr-1 text-sm text-slatecw-800">
+                  <!-- Populated dynamically via JS -->
+                </ul>
+                <div class="pt-4 mt-3 border-t border-slatecw-200 flex items-center justify-between gap-2">
+                  <button type="button" onclick="App.clearAllFilters()" class="text-sm text-rose-600 hover:underline font-medium cursor-pointer">
+                    Limpar filtros
+                  </button>
+                  <button type="button" onclick="UI.toggleFiltersPanel(false)" class="px-4 py-2 rounded-lg bg-cwcyan-500 hover:bg-cwcyan-600 text-white text-xs font-bold uppercase tracking-wider cursor-pointer">
+                    Ver resultados
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Filters Summary -->
+          <div id="active-filters-summary" class="hidden mt-3 flex flex-wrap items-center gap-2 text-xs text-slatecw-600">
+            <span class="font-medium">Filtros ativos:</span>
+            <div id="active-tags-container" class="flex flex-wrap gap-1.5"></div>
+            <button type="button" onclick="App.clearAllFilters()" class="text-rose-600 hover:underline font-semibold ml-1 cursor-pointer">Limpar tudo</button>
+          </div>
+        </div>
+
+        <!-- Results Counter & Sorting Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 mb-5 border-b border-slatecw-200">
+          <p id="results-count" class="text-sm font-semibold text-slatecw-700">
+            Carregando espaços...
+          </p>
+          <div class="flex items-center gap-2 text-xs">
+            <label for="sort-select" class="text-slatecw-500 font-medium">Ordenar por:</label>
+            <select id="sort-select" onchange="App.setSort(this.value)" class="h-8 px-2.5 rounded-md border border-slatecw-200 bg-slatecw-50 text-slatecw-800 font-semibold focus:border-cwcyan-500 focus:outline-none cursor-pointer">
+              <option value="featured">Destaques SP</option>
+              <option value="amenities">Mais completos (Estrutura)</option>
+              <option value="name_asc">Nome (A - Z)</option>
+              <option value="neighborhood">Bairro (A - Z)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Spaces Grid -->
+        <ul id="spaces-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+          <!-- Cards rendered via JS -->
+        </ul>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden py-14 px-6 text-center bg-slatecw-50 rounded-xl border border-slatecw-200 my-4">
+          <div class="size-12 rounded-full bg-slatecw-200 text-slatecw-600 flex items-center justify-center mx-auto mb-3 text-xl">🔍</div>
+          <p class="text-lg font-display font-bold text-slatecw-800 mb-1">Nenhum espaço encontrado com esses critérios</p>
+          <p class="text-sm text-slatecw-600 mb-5 max-w-md mx-auto">Tente buscar por outro bairro (ex: Pinheiros, Bela Vista, Brooklin) ou remova alguns filtros selecionados.</p>
+          <button type="button" onclick="App.clearAllFilters()" class="px-5 py-2.5 rounded-lg bg-cwcyan-500 text-white text-sm font-semibold hover:bg-cwcyan-600 transition cursor-pointer">
+            Restaurar todos os espaços
+          </button>
+        </div>
+
+        <!-- Pagination -->
+        <nav id="pagination-nav" aria-label="Paginação dos espaços" class="mt-10 flex items-center justify-center gap-1.5">
+          <!-- Pagination buttons rendered via JS -->
+        </nav>
+
+      </div>
+
+      <!-- Sticky Compare Tray (appears when >= 1 space selected for comparison) -->
+      <div id="compare-tray" class="hidden sticky bottom-4 mx-4 sm:mx-8 z-30 bg-slatecw-900 text-white rounded-xl shadow-2xl px-4 py-3 flex items-center justify-between gap-4 border border-slatecw-700">
+        <div class="flex items-center gap-3 overflow-x-auto">
+          <span class="text-xs font-bold uppercase tracking-wider text-cwcyan-500 shrink-0">Comparar (<span id="compare-count">0</span>/3):</span>
+          <div id="compare-pills" class="flex items-center gap-2"></div>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" onclick="App.clearCompare()" class="text-xs text-slatecw-400 hover:text-white px-2 py-1 cursor-pointer">Limpar</button>
+          <button type="button" onclick="UI.openCompareModal()" class="px-4 py-1.5 rounded-lg bg-cwcyan-500 hover:bg-cwcyan-600 text-white text-xs font-bold transition cursor-pointer">
+            Comparar agora
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Mobile Floating Map Toggle Button -->
+    <button id="mobile-map-toggle" type="button" onclick="toggleMobileMap()" class="lg:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 h-10 px-6 rounded-full bg-cwcyan-500 hover:bg-cwcyan-600 text-white font-semibold text-sm shadow-lg cursor-pointer">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 6.75V15m6-6v8.25m.503 3.498 4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 0 0-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0Z"/>
+      </svg>
+      <span id="mobile-map-toggle-text">Ver Mapa</span>
+    </button>
+  </main>
+
+  <!-- ================= SPACE DETAILS MODAL ================= -->
+  <div id="space-modal" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-50 bg-slatecw-900/65 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <!-- Modal Header -->
+      <div class="px-6 py-4 border-b border-slatecw-200 flex items-center justify-between gap-4">
+        <div>
+          <span id="modal-neighborhood" class="text-xs font-bold uppercase tracking-wider text-cwcyan-600">Bairro, São Paulo</span>
+          <h2 id="modal-title" class="font-display text-xl font-extrabold text-slatecw-900">Nome do Coworking</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" id="modal-fav-btn" class="h-9 px-3 rounded-lg border border-slatecw-200 text-sm font-semibold text-slatecw-700 hover:border-rose-300 hover:text-rose-600 transition cursor-pointer">
+            ♡ Salvar
+          </button>
+          <button type="button" onclick="UI.closeSpaceModal()" aria-label="Fechar modal" class="size-9 rounded-lg flex items-center justify-center text-slatecw-500 hover:bg-slatecw-100 hover:text-slatecw-900 cursor-pointer">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-6 overflow-y-auto space-y-6">
+        <div class="aspect-video w-full rounded-xl overflow-hidden bg-slatecw-200 relative">
+          <img id="modal-image" src="" alt="" class="w-full h-full object-cover" />
+          <div id="modal-amenity-score" class="absolute bottom-3 right-3 bg-slatecw-900/85 backdrop-blur-xs text-white text-xs font-bold px-3 py-1.5 rounded-lg">
+            0 comodidades verificadas
+          </div>
+        </div>
+
+        <div>
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slatecw-500 mb-3">Estrutura e Facilidades Disponíveis</h3>
+          <div id="modal-features" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+            <!-- Badges injected via JS -->
+          </div>
+        </div>
+
+        <!-- Direct Contact / Quote Form -->
+        <div class="bg-slatecw-50 rounded-xl p-5 border border-slatecw-200">
+          <h3 class="font-display font-bold text-base text-slatecw-900 mb-1">Solicitar orçamento ou agendar visita</h3>
+          <p class="text-xs text-slatecw-600 mb-3.5">Contato direto com a equipe de atendimento do espaço, sem taxas de intermediação.</p>
+          <form id="space-contact-form" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <input type="text" required placeholder="Seu nome completo*" class="h-9 px-3 rounded-lg border border-slatecw-400 bg-white text-sm focus:border-cwcyan-500 focus:outline-none" />
+            <input type="email" required placeholder="Seu e-mail corporativo*" class="h-9 px-3 rounded-lg border border-slatecw-400 bg-white text-sm focus:border-cwcyan-500 focus:outline-none" />
+            <select class="h-9 px-3 rounded-lg border border-slatecw-400 bg-white text-sm focus:border-cwcyan-500 focus:outline-none">
+              <option>Estação Compartilhada (Hot Desk)</option>
+              <option>Mesa Dedicada</option>
+              <option>Sala Privativa para Equipe</option>
+              <option>Sala de Reunião por Hora</option>
+              <option>Escritório Virtual / Endereço Fiscal</option>
+            </select>
+            <button type="submit" class="h-9 px-4 rounded-lg bg-cwcyan-500 hover:bg-cwcyan-600 text-white font-bold text-sm transition-colors cursor-pointer">
+              Solicitar Proposta
+            </button>
+          </form>
+          <p id="modal-contact-success" class="hidden text-xs font-semibold text-emerald-700 mt-2.5 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+            ✓ Solicitação enviada com sucesso! O coworking responderá no seu e-mail em breve.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= COMPARE SPACES MODAL ================= -->
+  <div id="compare-modal" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-50 bg-slatecw-900/65 backdrop-blur-xs flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="px-6 py-4 border-b border-slatecw-200 flex items-center justify-between">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-cwcyan-600">Análise Lado a Lado</span>
+          <h2 class="font-display text-xl font-extrabold text-slatecw-900">Comparativo de Coworkings</h2>
+        </div>
+        <button type="button" onclick="UI.closeCompareModal()" class="size-9 rounded-lg flex items-center justify-center text-slatecw-500 hover:bg-slatecw-100 hover:text-slatecw-900 cursor-pointer">✕</button>
+      </div>
+      <div id="compare-table-container" class="p-6 overflow-auto">
+        <!-- Populated dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= GENERIC INFO / REGISTER MODAL ================= -->
+  <div id="info-modal" role="dialog" aria-modal="true" class="hidden fixed inset-0 z-50 bg-slatecw-900/60 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slatecw-200 pb-3">
+        <h3 id="info-modal-title" class="font-display font-bold text-lg text-slatecw-900">Título</h3>
+        <button type="button" onclick="UI.closeInfoModal()" class="text-slatecw-500 hover:text-slatecw-900 cursor-pointer">✕</button>
+      </div>
+      <div id="info-modal-body" class="text-sm text-slatecw-700 space-y-3"></div>
+      <div class="pt-2 flex justify-end">
+        <button type="button" onclick="UI.closeInfoModal()" class="px-4 py-2 rounded-lg bg-cwcyan-500 text-white text-sm font-semibold hover:bg-cwcyan-600 cursor-pointer">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaflet JS + MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+  <script>
+    /**
+     * ============================================================================
+     * COWORKING BRASIL - SÃO PAULO DIRECTORY (SENIOR ARCHITECTURE)
+     * - Modular Services: Utils, Store (URL + LocalStorage Sync), MapService, UI, App
+     * - Zero external framework overhead, XSS-safe rendering, MarkerClustering
+     * ============================================================================
+     */
+
+    // ================= 1. DOMAIN CONSTANTS & DATASET =================
+    const FEATURE_LABELS = Object.freeze({
+      is_24: "Acesso 24h",
+      has_meeting_room: "Sala de reuniões",
+      has_ergonomic_chair: "Cadeira ergonômica",
+      has_community_space: "Espaço de convivência",
+      promotes_internal_events: "Eventos para membros",
+      has_air_conditioning: "Ar-condicionado",
+      has_private_phone: "Telefone privado",
+      has_fast_internet: "Internet rápida",
+      has_redundant_internet: "Internet redundante",
+      has_printing_service: "Serviço de impressão",
+      free_coffee: "Café grátis",
+      has_kitchen: "Cozinha/Copa",
+      has_standing_desks: "Standing desks",
+      has_secretary: "Serviço de secretária",
+      offers_commercial_address: "Endereço comercial",
+      offers_legal_address: "Endereço fiscal",
+      wheelchair_accessible: "Acessível para cadeirantes",
+      has_private_locker: "Armários privados",
+      allows_pets: "Permite animais",
+      has_bike_parking: "Bicicletário",
+      has_parking: "Estacionamento no local",
+      accepts_credit_card: "Aceita cartão de crédito"
+    });
+
+    const SPACES_DATA = [
+      {
+        id: "01m0ebxgjpmkt4q0wjgwrrxqps",
+        name: "Coworking SP - Gowork",
+        neighborhood: "Bela Vista",
+        lat: -23.5652261,
+        lng: -46.6521194,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebxgjpmkt4q0wjgwrrxqps/gowork-uma-rede-social-fisica-49985bc5e1f429320fd4291df641ddba-01m0ecsqb9kk8j6a8jzd35vpvq.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, wheelchair_accessible: true, has_private_locker: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec7ktagfbzvhe8t2zvfqx5",
+        name: "Opportunity Work",
+        neighborhood: "Jardim das Laranjeiras",
+        lat: -23.5125307,
+        lng: -46.6672467,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec7ktagfbzvhe8t2zvfqx5/opportunity-work-bb5e1bf07abd694475cb5de344b2d393-01m0edxgz4skyz4t4996npz3hd.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, wheelchair_accessible: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0eck6m9559s6qfkwq93p8vk",
+        name: "Espaço Vereti Brasil",
+        neighborhood: "Centro Histórico",
+        lat: -23.5470155,
+        lng: -46.6364513,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0eck6m9559s6qfkwq93p8vk/espaco-vereti-brasil-85ffe19ec03972c8afefe916620d16f7-01m0eg3581m9434zd3txd10vke.png?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0eccy9yahd8yjkwnwbfa6ez",
+        name: "NW Coworking",
+        neighborhood: "Brooklin Novo",
+        lat: -23.6090998,
+        lng: -46.6930396,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0eccy9yahd8yjkwnwbfa6ez/68261-73440880c5766010b92e26e2cecfa80c-01m0eff5d7jg95aw6csmkcqwf8.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_standing_desks: true, has_secretary: true, offers_commercial_address: true, wheelchair_accessible: true, has_private_locker: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebvcaqnan7dv2kapa8sv3h",
+        name: "Blocktime Coworking",
+        neighborhood: "Pinheiros",
+        lat: -23.5528335,
+        lng: -46.6779078,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebvcaqnan7dv2kapa8sv3h/blocktime-coworking-953919a5d63a6befc811f241e8c1bdd2-01m0ecns752jwbq0rakvmx33x5.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec7tzrzjspywdnppcpvv0v",
+        name: "Little Office Coworking",
+        neighborhood: "Lapa",
+        lat: -23.5194319,
+        lng: -46.7081298,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec7tzrzjspywdnppcpvv0v/little-office-coworking-a927a08c5c988c16d223ba29131b96d7-01m0ee0ry07bbmtnwj4ckvmvy5.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec6br7v3pxy5dh3h4kg1dq",
+        name: "DK COWORKING - JABAQUARA",
+        neighborhood: "Jabaquara",
+        lat: -23.651739,
+        lng: -46.6376864,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec6br7v3pxy5dh3h4kg1dq/dk-coworking-ad0f1426073ec59c2d32c16373d75b17-01m0edj8tma6sq3zfnn76w1yxk.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebwtynqb5n3cabk0v1nh8r",
+        name: "BUCC | Workspaces",
+        neighborhood: "Alto de Pinheiros",
+        lat: -23.5685788,
+        lng: -46.6883007,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebwtynqb5n3cabk0v1nh8r/bucc-workspaces-bb1df2bd8e09052468cd92a7ba77d642-01m0ecrrg3b0bzryd0h56zb30k.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ech7exv8v3acevqg01hpgg",
+        name: "SPWorking",
+        neighborhood: "Butantã / Morumbi",
+        lat: -23.5838847,
+        lng: -46.721854,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ech7exv8v3acevqg01hpgg/spworking-salas-de-trabalho-3cf3e0ba6ce0211f5f8eefa3d63cf5e3-01m0eftyc0qpvxghkdnh4z5dkr.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_private_locker: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec5sqyc5n7gf8be939cfcr",
+        name: "Distrito",
+        neighborhood: "Cerqueira César",
+        lat: -23.5663337,
+        lng: -46.669023,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec5sqyc5n7gf8be939cfcr/distrito-2-bb21f34a6971da96c51bcb6e99e52979-01m0eddc1dc9fymzbmq093cc1j.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, has_private_locker: true, has_bike_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec4k330j5q7xqp21vg1gqx",
+        name: "AKASAHUB",
+        neighborhood: "Itaim Bibi",
+        lat: -23.58889,
+        lng: -46.679878,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec4k330j5q7xqp21vg1gqx/akasahub-bb76ea76e9611061b4bfd19ac6fb0d8d-01m0ed8wtv3gng6ekyb1tbf2xv.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec5saa7ehy7fn1m0vyfdj3",
+        name: "CoDesign Coworking",
+        neighborhood: "Vila Olímpia",
+        lat: -23.5947439,
+        lng: -46.6854853,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec5saa7ehy7fn1m0vyfdj3/codesign-17fd40cda1a9c6c81b544768ec137ac5-01m0eddvp6426qyrknbcjh00e2.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_standing_desks: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebz7yvnzfa5g5ttywhb180",
+        name: "Soma Escritório Compartilhado",
+        neighborhood: "Centro",
+        lat: -23.5485116,
+        lng: -46.6375075,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebz7yvnzfa5g5ttywhb180/soma-escritorio-compartilhado-6fc87365c2b3453889b7d87047d8bf6e-01m0ecwfvjnvw5fs8meqqdvcxj.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, has_private_locker: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ech0r5sxapgc4v4abq00rk",
+        name: "My Place Office Chácara Santo Antonio",
+        neighborhood: "Chácara Santo Antônio",
+        lat: -23.6309788,
+        lng: -46.705656,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ech0r5sxapgc4v4abq00rk/my-place-office-chacara-santo-antonio-2f433cca9fb985baee557d367afc7b6e-01m0eftvqs7vza93jxv3g0n54a.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true }
+      },
+      {
+        id: "01m0eck37r0gbrnepdj51p3bmp",
+        name: "Casa Pagliare",
+        neighborhood: "Vila Madalena",
+        lat: -23.5536469,
+        lng: -46.6952386,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0eck37r0gbrnepdj51p3bmp/casa-pagliare-c77368ddd7ee0471de792a5d9d53c1b8-01m0eg2q6f4xbzca9jywktzb41.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_fast_internet: true }
+      },
+      {
+        id: "01m0ebzf3d1gwdem7y07skmv64",
+        name: "Oficina Coworking",
+        neighborhood: "Jardim Paulista",
+        lat: -23.5611593,
+        lng: -46.6589063,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebzf3d1gwdem7y07skmv64/oficina-coworking-4-c87f6dde74ab9ecaf812c14e7aecf06a-01m0ecwxckagmr1g83aj3vt6yk.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_standing_desks: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0echew1qpqjs34s5s8kvzg4",
+        name: "Lié Coworking",
+        neighborhood: "Santana",
+        lat: -23.4985038,
+        lng: -46.6254586,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0echew1qpqjs34s5s8kvzg4/lie-coworking-2291cccf308136e32b5d1c75d5818373-01m0efw0tq2p9ssz43mtq9je31.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebyx3kgeqd6bzs7yd1je37",
+        name: "MyHub Coworking",
+        neighborhood: "Santana",
+        lat: -23.5021103,
+        lng: -46.6204643,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebyx3kgeqd6bzs7yd1je37/myhub-coworking-a010c2fb62e50ab1b16cb81fe3829740-01m0ecvxa3qmsertsz88sfjjjm.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, has_private_locker: true, has_bike_parking: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ec07q42s9w5gnfzj4nkjjt",
+        name: "coworking.eco.br",
+        neighborhood: "Água Branca",
+        lat: -23.5299575,
+        lng: -46.6724972,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec07q42s9w5gnfzj4nkjjt/coworking-eco-br-43409c4fa0419e37e6d4aaf11145a811-01m0ecyr89sx2f03mzaf3ck06d.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, wheelchair_accessible: true, has_private_locker: true, has_bike_parking: true }
+      },
+      {
+        id: "01m0ebyc56grpjwh744gfj747x",
+        name: "Mako Coworking",
+        neighborhood: "Vila Mariana",
+        lat: -23.5846724,
+        lng: -46.6471063,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebyc56grpjwh744gfj747x/mako-coworking-f045c650556f1fd332ceb17340af90ab-01m0ecvdfgraze8svdm8gjz5f4.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, has_private_locker: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebzbhs86trtsk496kgfjcm",
+        name: "WORKin OFFICE - Crescendo juntos",
+        neighborhood: "Vila Olímpia",
+        lat: -23.5940179,
+        lng: -46.6900049,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebzbhs86trtsk496kgfjcm/workin-office-crescendo-juntos-1c24431da3b22644e3e80db51b64dd3e-01m0ecwkrx2h5actf0154aeaf6.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_private_phone: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, wheelchair_accessible: true, has_private_locker: true, has_parking: true }
+      },
+      {
+        id: "01m0echsz52g14rjsmnytt8j1k",
+        name: "BARONESA OFFICE",
+        neighborhood: "Santa Cecília",
+        lat: -23.5395027,
+        lng: -46.6562287,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0echsz52g14rjsmnytt8j1k/baronesa-office-3ef766aab6481f2c0a339d34f6230a88-01m0efy2gg2m7n805cdjgvs0rv.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_air_conditioning: true, has_fast_internet: true, has_kitchen: true, offers_commercial_address: true, has_parking: true }
+      },
+      {
+        id: "01m0ech773b4h85fqvqgg3kk2m",
+        name: "gap7 Berrini",
+        neighborhood: "Brooklin Paulista",
+        lat: -23.6121619,
+        lng: -46.6922848,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ech773b4h85fqvqgg3kk2m/gap7-berrini-4f55d7c03dc741da630b65d3d5c15d5d-01m0efva7cgmxs69rdqex0fqhh.png?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_private_phone: true, has_fast_internet: true, has_redundant_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true, has_private_locker: true, has_bike_parking: true, has_parking: true }
+      },
+      {
+        id: "01m0ecgfnyh95jqm9v43ags1cz",
+        name: "Coworking KSA Pacaembú",
+        neighborhood: "Pacaembu",
+        lat: -23.5328794,
+        lng: -46.6611269,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ecgfnyh95jqm9v43ags1cz/coworking-ksa-pacaembu-7e2f8f45e32ec2a38e8f8d49ba1ab5cf-01m0efs7yg3kxyp5n52ypn2nk4.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, promotes_internal_events: true, has_air_conditioning: true, has_fast_internet: true, has_printing_service: true, free_coffee: true, has_kitchen: true, has_secretary: true, offers_commercial_address: true, offers_legal_address: true, has_private_locker: true, has_parking: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0efk7mygnm1t4jdv156st4t",
+        name: "CLUB COWORKING | FARIA LIMA ESQUINA COM A JK",
+        neighborhood: "Itaim Bibi",
+        lat: -23.5912885,
+        lng: -46.682165,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0efk7mygnm1t4jdv156st4t/club-coworking-faria-lima-esquina-com-a-jk-afcea4a4a54363adcb7b1d4123a7ddf3-01m0egmzkz5mhf5d98hk0341pv.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { is_24: true, has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0ebz46r7vnzryd1znzejprc",
+        name: "Coworking Consolação",
+        neighborhood: "República",
+        lat: -23.5468421,
+        lng: -46.6462705,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ebz46r7vnzryd1znzejprc/coworking-consolacao-f460b7998e30411c359abb529bfc6417-01m0ecw7a4gk5173mzwhn5zen7.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, accepts_credit_card: true }
+      },
+      {
+        id: "01m0edkgbbae027gq5t1gj9rkk",
+        name: "COW ITAIM BIBI",
+        neighborhood: "Itaim Bibi",
+        lat: -23.5854949,
+        lng: -46.6804085,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0edkgbbae027gq5t1gj9rkk/co-w-itaim-bibi-ae86aeac83c3da9778fe53870aac9b5f-01m0eg40vxmsbpzb0d2dgb1ehx.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { is_24: true, has_meeting_room: true, has_ergonomic_chair: true, has_air_conditioning: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, has_bike_parking: true, has_parking: true }
+      },
+      {
+        id: "01m0ecdp8yjcbd52833jryqsnq",
+        name: "My Place Office - Vila Mariana",
+        neighborhood: "Vila Mariana",
+        lat: -23.586917,
+        lng: -46.6334835,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ecdp8yjcbd52833jryqsnq/my-place-office-vila-mariana-37feaa2f4f03c579f1c37c5edac2d82b-01m0efjgdwjqm9d6yt41mtb3gk.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_air_conditioning: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true }
+      },
+      {
+        id: "01m0ecamphptwj3xmw1ghy6fns",
+        name: "Gravity Coworking",
+        neighborhood: "Pinheiros",
+        lat: -23.5567671,
+        lng: -46.6798523,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ecamphptwj3xmw1ghy6fns/gaia-coworking-95ce547b275a62662ebb010f78061f28-01m0eexb9zrk9369m57v5bezn2.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, allows_pets: true, has_bike_parking: true }
+      },
+      {
+        id: "01m0ec82c6emhj22x9ty9rwrz0",
+        name: "Osmose Coworking Berrini 24/7",
+        neighborhood: "Brooklin",
+        lat: -23.6074852,
+        lng: -46.6943992,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec82c6emhj22x9ty9rwrz0/osmose-coworking-berrini-24-7-4768f4a9863718450941dc36310c2e8d-01m0ee2knap3jp7y8qj9c4fwtx.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { is_24: true, has_meeting_room: true, has_ergonomic_chair: true, has_air_conditioning: true, has_fast_internet: true, has_redundant_internet: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true }
+      },
+      {
+        id: "01m0echbk8zt2148dyb00kpreb",
+        name: "Neon Coworking - 24 horas",
+        neighborhood: "Vila Mascote",
+        lat: -23.6477931,
+        lng: -46.6621981,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0echbk8zt2148dyb00kpreb/estacao-compartilhada-ce34b938872b00ffd9ab158f413182bb-01m0efv9q1d7tkkpd38hd2qp58.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { is_24: true, has_meeting_room: true, has_air_conditioning: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, has_parking: true }
+      },
+      {
+        id: "01m0ecaxpmnqkq0ptyky95bjp1",
+        name: "Bendito Coworking - Unidade Paulista",
+        neighborhood: "Cerqueira César",
+        lat: -23.5581644,
+        lng: -46.6625584,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ecaxpmnqkq0ptyky95bjp1/bendito-coworking-375debbb8a7f1d6acabefa206b98b152-01m0eezzje8gtcsepwpgnh2n9s.png?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_ergonomic_chair: true, has_community_space: true, has_air_conditioning: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, offers_commercial_address: true, offers_legal_address: true, wheelchair_accessible: true }
+      },
+      {
+        id: "01m0ec180cwhd9kpmpfkxdy3d0",
+        name: "LAB Cowork",
+        neighborhood: "Consolação",
+        lat: -23.5493021,
+        lng: -46.6540729,
+        img: "https://assets.coworkingbrasil.org/production/app_01/assets/galleries/01m0ec180cwhd9kpmpfkxdy3d0/lab-fashion-9fc33f5b85f7d3d6e2ea108e1a954ba5-01m0ed0ssptgezq040r70n0qt3.jpg?width=640&height=448&fit=crop&auto=webp",
+        features: { has_meeting_room: true, has_community_space: true, promotes_internal_events: true, has_fast_internet: true, free_coffee: true, has_kitchen: true, allows_pets: true, has_bike_parking: true }
+      }
+    ].map((space, idx) => ({
+      ...space,
+      featuredRank: idx,
+      amenityCount: Object.values(space.features).filter(Boolean).length
+    }));
+
+    // ================= 2. UTILITIES =================
+    const Utils = {
+      normalize(str) {
+        return String(str || "")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "");
+      },
+      escapeHtml(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      },
+      debounce(fn, delay = 200) {
+        let timer;
+        return (...args) => {
+          clearTimeout(timer);
+          timer = setTimeout(() => fn(...args), delay);
+        };
+      }
+    };
+
+    // ================= 3. REACTIVE STATE STORE & PERSISTENCE =================
+    const Store = {
+      STORAGE_KEY_FAVS: "cwbr_sp_saved_v1",
+      state: {
+        searchQuery: "",
+        activeFeatures: new Set(),
+        savedIds: new Set(),
+        compareIds: new Set(),
+        savedOnly: false,
+        sortBy: "featured",
+        currentPage: 1,
+        itemsPerPage: 12,
+        mobileMapOpen: false
+      },
+
+      init() {
+        // Hydrate saved favorites from localStorage
+        try {
+          const saved = JSON.parse(localStorage.getItem(this.STORAGE_KEY_FAVS) || "[]");
+          if (Array.isArray(saved)) this.state.savedIds = new Set(saved);
+        } catch (_) {}
+
+        // Hydrate filters from URL Query String (Shareable search URLs)
+        try {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get("q")) this.state.searchQuery = params.get("q");
+          if (params.get("sort")) this.state.sortBy = params.get("sort");
+          if (params.get("saved") === "1") this.state.savedOnly = true;
+          const feats = params.get("features");
+          if (feats) {
+            feats.split(",").forEach(f => {
+              if (FEATURE_LABELS[f]) this.state.activeFeatures.add(f);
+            });
+          }
+        } catch (_) {}
+      },
+
+      persistFavorites() {
+        try {
+          localStorage.setItem(this.STORAGE_KEY_FAVS, JSON.stringify([...this.state.savedIds]));
+        } catch (_) {}
+      },
+
+      syncUrl() {
+        try {
+          const params = new URLSearchParams();
+          if (this.state.searchQuery.trim()) params.set("q", this.state.searchQuery.trim());
+          if (this.state.activeFeatures.size > 0) params.set("features", [...this.state.activeFeatures].join(","));
+          if (this.state.sortBy !== "featured") params.set("sort", this.state.sortBy);
+          if (this.state.savedOnly) params.set("saved", "1");
+          const queryStr = params.toString();
+          const newUrl = queryStr ? `${window.location.pathname}?${queryStr}` : window.location.pathname;
+          window.history.replaceState(null, "", newUrl);
+        } catch (_) {}
+      }
+    };
+
+    // ================= 4. MAP & CLUSTERING SERVICE =================
+    const MapService = {
+      map: null,
+      clusterGroup: null,
+      markersById: {},
+      DEFAULT_CENTER: [-23.565, -46.665],
+      DEFAULT_ZOOM: 12,
+
+      init() {
+        this.map = L.map("spaces-map", {
+          zoomControl: true,
+          scrollWheelZoom: true
+        }).setView(this.DEFAULT_CENTER, this.DEFAULT_ZOOM);
+
+        L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+          attribution: "&copy; OpenStreetMap &copy; CARTO",
+          subdomains: "abcd",
+          maxZoom: 19
+        }).addTo(this.map);
+
+        this.clusterGroup = L.markerClusterGroup({
+          maxClusterRadius: 42,
+          spiderfyOnMaxZoom: true,
+          showCoverageOnHover: false,
+          iconCreateFunction: (cluster) => {
+            const count = cluster.getChildCount();
+            return L.divIcon({
+              html: `<div class="custom-cluster-inner">${count}</div>`,
+              className: "custom-cluster",
+              iconSize: L.point(40, 40)
+            });
+          }
+        });
+
+        this.map.addLayer(this.clusterGroup);
+      },
+
+      resetBounds() {
+        if (!this.map) return;
+        this.map.setView(this.DEFAULT_CENTER, this.DEFAULT_ZOOM, { animate: true });
+      },
+
+      fitToFiltered(animate = true) {
+        if (!this.map || !this.clusterGroup) return;
+        const bounds = this.clusterGroup.getBounds();
+        if (bounds.isValid()) {
+          this.map.fitBounds(bounds, { padding: [45, 45], maxZoom: 15, animate });
+        }
+      },
+
+      renderMarkers(spaces) {
+        if (!this.clusterGroup) return;
+        this.clusterGroup.clearLayers();
+        this.markersById = {};
+
+        const markers = spaces.map(space => {
+          const icon = L.divIcon({
+            className: "",
+            html: `<div id="pin-${space.id}" class="custom-pin w-4 h-4"></div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+            popupAnchor: [0, -10]
+          });
+
+          const safeName = Utils.escapeHtml(space.name);
+          const safeNeighborhood = Utils.escapeHtml(space.neighborhood);
+          const popupHtml = `
+            <div class="cursor-pointer" onclick="UI.openSpaceModal('${space.id}')">
+              <img src="${space.img}" alt="${safeName}" class="w-full h-28 object-cover block" onerror="this.src='https://placehold.co/400x240/edf0f3/607d8b?text=Coworking+SP'" />
+              <div class="p-3">
+                <strong class="block text-sm font-bold text-slatecw-900 leading-snug hover:text-cwcyan-600">${safeName}</strong>
+                <span class="block text-xs text-slatecw-600 mt-0.5">${safeNeighborhood}, São Paulo</span>
+                <div class="mt-2 pt-2 border-t border-slatecw-100 flex items-center justify-between text-[11px]">
+                  <span class="text-slatecw-500 font-medium">${space.amenityCount} comodidades</span>
+                  <span class="font-bold uppercase text-cwcyan-600">Detalhes →</span>
+                </div>
+              </div>
+            </div>
+          `;
+
+          const marker = L.marker([space.lat, space.lng], { icon }).bindPopup(popupHtml);
+          this.markersById[space.id] = marker;
+          return marker;
+        });
+
+        this.clusterGroup.addLayers(markers);
+      },
+
+      highlightPin(spaceId, active) {
+        const pinEl = document.getElementById(`pin-${spaceId}`);
+        if (pinEl) pinEl.classList.toggle("active", active);
+      },
+
+      focusSpace(spaceId) {
+        const marker = this.markersById[spaceId];
+        if (!marker || !this.clusterGroup) return;
+        this.clusterGroup.zoomToShowLayer(marker, () => {
+          marker.openPopup();
+        });
+      }
+    };
+
+    // ================= 5. APPLICATION CONTROLLER =================
+    const App = {
+      getFilteredAndSortedSpaces() {
+        const { searchQuery, activeFeatures, savedIds, savedOnly, sortBy } = Store.state;
+        const normQuery = Utils.normalize(searchQuery.trim());
+
+        const filtered = SPACES_DATA.filter(space => {
+          if (savedOnly && !savedIds.has(space.id)) return false;
+
+          if (normQuery !== "") {
+            const nameNorm = Utils.normalize(space.name);
+            const neighNorm = Utils.normalize(space.neighborhood);
+            if (!nameNorm.includes(normQuery) && !neighNorm.includes(normQuery)) {
+              return false;
+            }
+          }
+
+          for (const feat of activeFeatures) {
+            if (!space.features[feat]) return false;
+          }
+          return true;
+        });
+
+        return filtered.sort((a, b) => {
+          if (sortBy === "amenities") return b.amenityCount - a.amenityCount;
+          if (sortBy === "name_asc") return a.name.localeCompare(b.name, "pt-BR");
+          if (sortBy === "neighborhood") return a.neighborhood.localeCompare(b.neighborhood, "pt-BR");
+          return a.featuredRank - b.featuredRank;
+        });
+      },
+
+      refresh(autoFitMap = false) {
+        Store.syncUrl();
+        const filtered = this.getFilteredAndSortedSpaces();
+        UI.renderResults(filtered);
+        UI.renderFilterControls();
+        UI.renderCompareTray();
+        MapService.renderMarkers(filtered);
+        if (autoFitMap && filtered.length > 0 && filtered.length < SPACES_DATA.length) {
+          MapService.fitToFiltered(true);
+        }
+      },
+
+      setSearch(value, autoFitMap = false) {
+        Store.state.searchQuery = value;
+        Store.state.currentPage = 1;
+        document.getElementById("clear-search-btn").classList.toggle("hidden", value === "");
+        this.refresh(autoFitMap);
+      },
+
+      quickSearch(neighborhood) {
+        const input = document.getElementById("search-input");
+        input.value = neighborhood;
+        this.setSearch(neighborhood, true);
+      },
+
+      clearSearch() {
+        const input = document.getElementById("search-input");
+        input.value = "";
+        this.setSearch("", false);
+      },
+
+      toggleFeature(feat) {
+        const set = Store.state.activeFeatures;
+        if (set.has(feat)) set.delete(feat);
+        else set.add(feat);
+        Store.state.currentPage = 1;
+        this.refresh(true);
+      },
+
+      clearAllFilters() {
+        Store.state.activeFeatures.clear();
+        Store.state.savedOnly = false;
+        this.clearSearch();
+        MapService.resetBounds();
+      },
+
+      setSort(sortKey) {
+        Store.state.sortBy = sortKey;
+        Store.state.currentPage = 1;
+        this.refresh(false);
+      },
+
+      goToPage(page) {
+        Store.state.currentPage = page;
+        this.refresh(false);
+        document.getElementById("results-pane").scrollTo({ top: 0, behavior: "smooth" });
+      },
+
+      toggleSaveSpace(spaceId) {
+        const { savedIds } = Store.state;
+        if (savedIds.has(spaceId)) savedIds.delete(spaceId);
+        else savedIds.add(spaceId);
+        Store.persistFavorites();
+        this.refresh(false);
+        UI.syncModalFavoriteBtn(spaceId);
+      },
+
+      toggleSavedOnly() {
+        Store.state.savedOnly = !Store.state.savedOnly;
+        Store.state.currentPage = 1;
+        this.refresh(true);
+      },
+
+      toggleCompare(spaceId) {
+        const { compareIds } = Store.state;
+        if (compareIds.has(spaceId)) {
+          compareIds.delete(spaceId);
+        } else {
+          if (compareIds.size >= 3) {
+            // Substitui o mais antigo para fluidez UX sem bloqueios invasivos
+            const oldest = compareIds.values().next().value;
+            compareIds.delete(oldest);
+          }
+          compareIds.add(spaceId);
+        }
+        this.refresh(false);
+      },
+
+      clearCompare() {
+        Store.state.compareIds.clear();
+        this.refresh(false);
+      },
+
+      copyShareLink(btn) {
+        const url = window.location.href;
+        const tempInput = document.createElement("input");
+        tempInput.value = url;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand("copy");
+        document.body.removeChild(tempInput);
+
+        const labelSpan = btn.querySelector("span:last-child");
+        const originalText = labelSpan.textContent;
+        labelSpan.textContent = "Link copiado!";
+        btn.classList.add("border-cwcyan-500", "text-cwcyan-600");
+        setTimeout(() => {
+          labelSpan.textContent = originalText;
+          btn.classList.remove("border-cwcyan-500", "text-cwcyan-600");
+        }, 2000);
+      }
+    };
+
+    // ================= 6. UI RENDERER & MODALS =================
+    const UI = {
+      currentModalSpaceId: null,
+
+      populateAllFeaturesList() {
+        const listEl = document.getElementById("all-features-list");
+        listEl.innerHTML = Object.entries(FEATURE_LABELS).map(([key, label]) => `
+          <li>
+            <label class="flex items-center gap-2.5 cursor-pointer hover:text-cwcyan-600 select-none py-0.5">
+              <input type="checkbox" data-panel-feat="${key}" onchange="App.toggleFeature('${key}')" class="rounded border-slatecw-400 text-cwcyan-500 focus:ring-cwcyan-500 size-4 cursor-pointer" />
+              <span>${Utils.escapeHtml(label)}</span>
+            </label>
+          </li>
+        `).join("");
+      },
+
+      renderResults(filtered) {
+        const { currentPage, itemsPerPage, searchQuery, activeFeatures, savedOnly, savedIds, compareIds } = Store.state;
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / itemsPerPage));
+        if (currentPage > totalPages) Store.state.currentPage = 1;
+
+        const startIdx = (Store.state.currentPage - 1) * itemsPerPage;
+        const paginated = filtered.slice(startIdx, startIdx + itemsPerPage);
+
+        // Counter
+        const countEl = document.getElementById("results-count");
+        if (searchQuery === "" && activeFeatures.size === 0 && !savedOnly) {
+          countEl.textContent = `${total} espaços em destaque (de 126 cadastrados em São Paulo)`;
+        } else {
+          countEl.textContent = `${total} ${total === 1 ? "espaço encontrado" : "espaços encontrados"}`;
+        }
+
+        // Grid
+        const gridEl = document.getElementById("spaces-grid");
+        const emptyEl = document.getElementById("empty-state");
+
+        if (paginated.length === 0) {
+          gridEl.innerHTML = "";
+          emptyEl.classList.remove("hidden");
+        } else {
+          emptyEl.classList.add("hidden");
+          gridEl.innerHTML = paginated.map(space => {
+            const safeName = Utils.escapeHtml(space.name);
+            const safeNeighborhood = Utils.escapeHtml(space.neighborhood);
+            const isSaved = savedIds.has(space.id);
+            const isCompared = compareIds.has(space.id);
+            const staggerIndex = paginated.indexOf(space);
+
+            return `
+              <li style="--stagger: ${staggerIndex}" class="cw-card-enter group flex flex-col bg-gradient-to-b from-white to-slatecw-50/50 rounded-[20px] border border-slatecw-200/90 hover:border-cwcyan-500/70 hover:-translate-y-1 hover:shadow-[0_16px_32px_-12px_rgba(38,50,56,0.14)] transition-all duration-300 ease-out overflow-hidden"
+                  onmouseenter="MapService.highlightPin('${space.id}', true)"
+                  onmouseleave="MapService.highlightPin('${space.id}', false)">
+                <div onclick="UI.openSpaceModal('${space.id}')" class="cursor-pointer flex-1 flex flex-col">
+                  <div class="aspect-[237/166] bg-slatecw-200 overflow-hidden relative m-1.5 rounded-[14px]">
+                    <img 
+                      src="${space.img}" 
+                      alt="${safeName}" 
+                      loading="lazy" 
+                      onerror="this.src='https://placehold.co/640x448/edf0f3/607d8b?text=${encodeURIComponent(space.name)}'"
+                      class="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                    />
+                    <div class="absolute top-2.5 left-2.5 flex items-center gap-1.5">
+                      ${space.features.is_24 ? '<span class="bg-slatecw-900/80 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">24h</span>' : ''}
+                      ${space.features.offers_legal_address ? '<span class="bg-cwcyan-600/85 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full">End. Fiscal</span>' : ''}
+                    </div>
+                    <button type="button" onclick="event.stopPropagation(); App.toggleSaveSpace('${space.id}')" aria-label="Salvar favorito" title="${isSaved ? 'Remover dos salvos' : 'Salvar espaço'}"
+                      class="absolute top-2.5 right-2.5 size-8 rounded-full bg-white/85 backdrop-blur-md hover:bg-white hover:scale-110 active:scale-95 shadow-xs flex items-center justify-center text-base transition-all duration-200 cursor-pointer ${isSaved ? 'text-rose-500' : 'text-slatecw-600 hover:text-rose-500'}">
+                      ${isSaved ? '♥' : '♡'}
+                    </button>
+                  </div>
+
+                  <div class="px-4 pt-2 pb-3.5 flex-1 flex flex-col">
+                    <h3 class="font-display font-bold text-[15px] text-slatecw-900 group-hover:text-cwcyan-600 transition-colors leading-snug mb-1 line-clamp-2">
+                      ${safeName}
+                    </h3>
+                    <p class="text-xs text-slatecw-600 mb-3">${safeNeighborhood}, São Paulo</p>
+                    
+                    <div class="mt-auto pt-2.5 border-t border-slatecw-100 flex items-center justify-between text-xs">
+                      <span class="text-slatecw-500 font-medium">${space.amenityCount} facilidades</span>
+                      <div class="flex items-center gap-2">
+                        <button type="button" onclick="event.stopPropagation(); App.toggleCompare('${space.id}')" 
+                          class="px-2.5 py-0.5 rounded-full border text-[11px] font-semibold transition-all duration-200 hover:scale-105 cursor-pointer ${isCompared ? 'bg-slatecw-900 border-slatecw-900 text-white' : 'border-slatecw-200 text-slatecw-600 hover:border-slatecw-400'}">
+                          ${isCompared ? '✓ Comparando' : '+ Comparar'}
+                        </button>
+                        <button type="button" onclick="event.stopPropagation(); MapService.focusSpace('${space.id}')" class="hidden lg:inline-flex items-center text-[11px] font-bold text-cwcyan-600 hover:underline cursor-pointer" title="Localizar no mapa">
+                          Mapa
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </li>
+            `;
+          }).join("");
+        }
+
+        this.renderPagination(totalPages);
+      },
+
+      renderPagination(totalPages) {
+        const nav = document.getElementById("pagination-nav");
+        const { currentPage } = Store.state;
+        if (totalPages <= 1) {
+          nav.innerHTML = "";
+          return;
+        }
+
+        let html = `
+          <button type="button" onclick="App.goToPage(${currentPage - 1})" ${currentPage === 1 ? "disabled" : ""} 
+            class="h-8 px-3 rounded-lg border border-slatecw-200 bg-white text-xs font-semibold text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+            ‹ Anterior
+          </button>
+        `;
+
+        for (let i = 1; i <= totalPages; i++) {
+          const isCurrent = i === currentPage;
+          html += `
+            <button type="button" onclick="App.goToPage(${i})" 
+              class="h-8 min-w-[32px] px-2 rounded-lg border text-xs font-bold transition-colors cursor-pointer ${isCurrent ? "bg-cwcyan-500 border-cwcyan-500 text-white" : "bg-white border-slatecw-200 text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600"}">
+              ${i}
+            </button>
+          `;
+        }
+
+        html += `
+          <button type="button" onclick="App.goToPage(${currentPage + 1})" ${currentPage === totalPages ? "disabled" : ""} 
+            class="h-8 px-3 rounded-lg border border-slatecw-200 bg-white text-xs font-semibold text-slatecw-700 hover:border-cwcyan-500 hover:text-cwcyan-600 disabled:opacity-40 disabled:pointer-events-none cursor-pointer">
+            Próxima ›
+          </button>
+        `;
+
+        nav.innerHTML = html;
+      },
+
+      renderFilterControls() {
+        const { activeFeatures, savedIds, savedOnly } = Store.state;
+
+        // Saved Header Pill
+        const savedNavBtn = document.getElementById("saved-nav-btn");
+        const savedHeart = document.getElementById("saved-heart-icon");
+        document.getElementById("saved-count-badge").textContent = savedIds.size;
+        if (savedOnly) {
+          savedNavBtn.classList.add("bg-rose-50", "border-rose-300", "text-rose-600");
+          savedHeart.textContent = "♥";
+        } else {
+          savedNavBtn.classList.remove("bg-rose-50", "border-rose-300", "text-rose-600");
+          savedHeart.textContent = "♡";
+        }
+
+        // Quick Filter Chips
+        document.querySelectorAll(".filter-chip").forEach(chip => {
+          const feat = chip.getAttribute("data-feature");
+          const active = activeFeatures.has(feat);
+          chip.classList.toggle("bg-cwcyan-500", active);
+          chip.classList.toggle("text-white", active);
+          chip.classList.toggle("border-cwcyan-500", active);
+          chip.classList.toggle("text-slatecw-700", !active);
+          chip.classList.toggle("border-slatecw-400", !active);
+        });
+
+        // Panel Checkboxes
+        document.querySelectorAll("[data-panel-feat]").forEach(cb => {
+          cb.checked = activeFeatures.has(cb.getAttribute("data-panel-feat"));
+        });
+
+        // Badge & Active Tags Summary
+        const badge = document.getElementById("active-filter-badge");
+        const summary = document.getElementById("active-filters-summary");
+        const tagsContainer = document.getElementById("active-tags-container");
+
+        if (activeFeatures.size > 0 || savedOnly) {
+          badge.textContent = activeFeatures.size;
+          badge.classList.toggle("hidden", activeFeatures.size === 0);
+          summary.classList.remove("hidden");
+
+          const savedTag = savedOnly
+            ? `<span class="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-semibold">♥ Apenas salvos <button type="button" onclick="App.toggleSavedOnly()" class="font-bold ml-0.5 cursor-pointer">×</button></span>`
+            : "";
+
+          const featTags = [...activeFeatures].map(feat => `
+            <span class="inline-flex items-center gap-1 bg-cwcyan-50 text-cwcyan-700 border border-cwcyan-100 px-2.5 py-0.5 rounded-full font-semibold">
+              ${Utils.escapeHtml(FEATURE_LABELS[feat])}
+              <button type="button" onclick="App.toggleFeature('${feat}')" class="hover:text-slatecw-900 font-bold ml-0.5 cursor-pointer">×</button>
+            </span>
+          `).join("");
+
+          tagsContainer.innerHTML = savedTag + featTags;
+        } else {
+          badge.classList.add("hidden");
+          summary.classList.add("hidden");
+        }
+      },
+
+      renderCompareTray() {
+        const { compareIds } = Store.state;
+        const tray = document.getElementById("compare-tray");
+        if (compareIds.size === 0) {
+          tray.classList.add("hidden");
+          return;
+        }
+        tray.classList.remove("hidden");
+        document.getElementById("compare-count").textContent = compareIds.size;
+
+        const pillsEl = document.getElementById("compare-pills");
+        pillsEl.innerHTML = [...compareIds].map(id => {
+          const sp = SPACES_DATA.find(s => s.id === id);
+          if (!sp) return "";
+          return `
+            <span class="inline-flex items-center gap-1.5 bg-slatecw-800 border border-slatecw-600 px-2.5 py-1 rounded-lg text-xs font-medium shrink-0">
+              <span class="max-w-[130px] truncate">${Utils.escapeHtml(sp.name)}</span>
+              <button type="button" onclick="App.toggleCompare('${id}')" class="text-slatecw-400 hover:text-white font-bold cursor-pointer">×</button>
+            </span>
+          `;
+        }).join("");
+      },
+
+      toggleFiltersPanel(forceState) {
+        const panel = document.getElementById("filters-panel");
+        const btn = document.getElementById("more-filters-btn");
+        const shouldOpen = typeof forceState === "boolean" ? forceState : panel.classList.contains("hidden");
+        panel.classList.toggle("hidden", !shouldOpen);
+        btn.setAttribute("aria-expanded", String(shouldOpen));
+      },
+
+      toggleMobileMap() {
+        Store.state.mobileMapOpen = !Store.state.mobileMapOpen;
+        const mapPane = document.getElementById("map-pane");
+        const resultsPane = document.getElementById("results-pane");
+        const toggleText = document.getElementById("mobile-map-toggle-text");
+
+        if (Store.state.mobileMapOpen) {
+          mapPane.classList.remove("hidden");
+          mapPane.classList.add("fixed", "inset-x-0", "top-[76px]", "bottom-0", "z-20");
+          resultsPane.classList.add("hidden");
+          toggleText.textContent = "Ver Lista";
+          setTimeout(() => { if (MapService.map) MapService.map.invalidateSize(); }, 100);
+        } else {
+          mapPane.classList.add("hidden");
+          mapPane.classList.remove("fixed", "inset-x-0", "top-[76px]", "bottom-0", "z-20");
+          resultsPane.classList.remove("hidden");
+          toggleText.textContent = "Ver Mapa";
+        }
+      },
+
+      syncModalFavoriteBtn(spaceId) {
+        if (this.currentModalSpaceId !== spaceId) return;
+        const btn = document.getElementById("modal-fav-btn");
+        const isSaved = Store.state.savedIds.has(spaceId);
+        btn.textContent = isSaved ? "♥ Salvo" : "♡ Salvar";
+        btn.classList.toggle("text-rose-600", isSaved);
+        btn.classList.toggle("border-rose-300", isSaved);
+        btn.classList.toggle("bg-rose-50", isSaved);
+      },
+
+      openSpaceModal(spaceId) {
+        const space = SPACES_DATA.find(s => s.id === spaceId);
+        if (!space) return;
+        this.currentModalSpaceId = spaceId;
+
+        document.getElementById("modal-neighborhood").textContent = `${space.neighborhood}, São Paulo - SP`;
+        document.getElementById("modal-title").textContent = space.name;
+        document.getElementById("modal-amenity-score").textContent = `${space.amenityCount} de ${Object.keys(FEATURE_LABELS).length} facilidades`;
+
+        const imgEl = document.getElementById("modal-image");
+        imgEl.src = space.img;
+        imgEl.alt = space.name;
+
+        const favBtn = document.getElementById("modal-fav-btn");
+        favBtn.onclick = () => App.toggleSaveSpace(spaceId);
+        this.syncModalFavoriteBtn(spaceId);
+
+        document.getElementById("modal-features").innerHTML = Object.entries(FEATURE_LABELS).map(([key, label]) => {
+          const hasIt = !!space.features[key];
+          return `
+            <div class="flex items-center gap-2 ${hasIt ? "text-slatecw-900 font-medium" : "text-slatecw-400 line-through"}">
+              <span class="${hasIt ? "text-cwcyan-600 font-bold" : "text-slatecw-400"}">${hasIt ? "✓" : "•"}</span>
+              <span>${Utils.escapeHtml(label)}</span>
+            </div>
+          `;
+        }).join("");
+
+        document.getElementById("modal-contact-success").classList.add("hidden");
+        const modal = document.getElementById("space-modal");
+        modal.classList.remove("hidden");
+        const card = modal.firstElementChild;
+        card.classList.remove("modal-animate-in");
+        void card.offsetWidth;
+        card.classList.add("modal-animate-in");
+      },
+
+      closeSpaceModal() {
+        this.currentModalSpaceId = null;
+        document.getElementById("space-modal").classList.add("hidden");
+      },
+
+      openCompareModal() {
+        const spaces = [...Store.state.compareIds]
+          .map(id => SPACES_DATA.find(s => s.id === id))
+          .filter(Boolean);
+        if (spaces.length === 0) return;
+
+        const headerCols = spaces.map(sp => `
+          <th class="p-3 text-left align-top min-w-[200px] border-b border-slatecw-200">
+            <img src="${sp.img}" alt="${Utils.escapeHtml(sp.name)}" class="w-full h-24 object-cover rounded-lg mb-2" />
+            <div class="font-display font-bold text-sm text-slatecw-900">${Utils.escapeHtml(sp.name)}</div>
+            <div class="text-xs font-normal text-slatecw-500 mt-0.5">${Utils.escapeHtml(sp.neighborhood)}</div>
+            <button type="button" onclick="UI.closeCompareModal(); UI.openSpaceModal('${sp.id}')" class="mt-2 text-xs font-bold text-cwcyan-600 hover:underline cursor-pointer">
+              Solicitar orçamento →
+            </button>
+          </th>
+        `).join("");
+
+        const featureRows = Object.entries(FEATURE_LABELS).map(([key, label]) => `
+          <tr class="border-b border-slatecw-100 hover:bg-slatecw-50/70">
+            <td class="p-2.5 text-xs font-semibold text-slatecw-700 sticky left-0 bg-white">${Utils.escapeHtml(label)}</td>
+            ${spaces.map(sp => `
+              <td class="p-2.5 text-center text-sm">
+                ${sp.features[key] ? '<span class="inline-flex items-center justify-center size-5 rounded-full bg-cwcyan-50 text-cwcyan-600 font-bold text-xs">✓</span>' : '<span class="text-slatecw-300">—</span>'}
+              </td>
+            `).join("")}
+          </tr>
+        `).join("");
+
+        document.getElementById("compare-table-container").innerHTML = `
+          <table class="w-full border-collapse">
+            <thead>
+              <tr>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wider text-slatecw-500 border-b border-slatecw-200 min-w-[160px]">Estrutura</th>
+                ${headerCols}
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="bg-slatecw-50 border-b border-slatecw-200">
+                <td class="p-2.5 text-xs font-bold text-slatecw-800">Total de Facilidades</td>
+                ${spaces.map(sp => `<td class="p-2.5 text-center text-xs font-extrabold text-cwcyan-700">${sp.amenityCount} itens</td>`).join("")}
+              </tr>
+              ${featureRows}
+            </tbody>
+          </table>
+        `;
+
+        document.getElementById("compare-modal").classList.remove("hidden");
+      },
+
+      closeCompareModal() {
+        document.getElementById("compare-modal").classList.add("hidden");
+      },
+
+      openRegisterModal() {
+        document.getElementById("info-modal-title").textContent = "Cadastrar Espaço no Coworking Brasil";
+        document.getElementById("info-modal-body").innerHTML = `
+          <p>Você gerencia um espaço de coworking ou escritório compartilhado em São Paulo?</p>
+          <p>Cadastre gratuitamente sua unidade para aparecer no mapa e receber solicitações diretas de empresas e profissionais.</p>
+          <form onsubmit="event.preventDefault(); this.innerHTML='<p class=\\'text-emerald-700 font-semibold\\'>✓ Pré-cadastro recebido! Enviamos o link de acesso ao painel para o seu e-mail.</p>';" class="space-y-3 pt-2">
+            <input type="text" required placeholder="Nome do Coworking*" class="w-full h-9 px-3 rounded-lg border border-slatecw-400 text-sm" />
+            <input type="email" required placeholder="E-mail corporativo*" class="w-full h-9 px-3 rounded-lg border border-slatecw-400 text-sm" />
+            <button type="submit" class="w-full h-9 rounded-lg bg-cwcyan-500 text-white font-semibold text-sm hover:bg-cwcyan-600 cursor-pointer">Continuar Cadastro</button>
+          </form>
+        `;
+        document.getElementById("info-modal").classList.remove("hidden");
+      },
+
+      openLoginModal() {
+        document.getElementById("info-modal-title").textContent = "Entrar no Painel do Gestor";
+        document.getElementById("info-modal-body").innerHTML = `
+          <form onsubmit="event.preventDefault(); UI.closeInfoModal();" class="space-y-3">
+            <div>
+              <label class="block text-xs font-semibold text-slatecw-700 mb-1">E-mail</label>
+              <input type="email" required placeholder="gestor@coworking.com.br" class="w-full h-9 px-3 rounded-lg border border-slatecw-400 text-sm" />
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slatecw-700 mb-1">Senha</label>
+              <input type="password" required placeholder="••••••••" class="w-full h-9 px-3 rounded-lg border border-slatecw-400 text-sm" />
+            </div>
+            <button type="submit" class="w-full h-9 rounded-lg bg-cwcyan-500 text-white font-semibold text-sm hover:bg-cwcyan-600 cursor-pointer">Acessar Conta</button>
+          </form>
+        `;
+        document.getElementById("info-modal").classList.remove("hidden");
+      },
+
+      openInfoModal(title) {
+        document.getElementById("info-modal-title").textContent = title;
+        document.getElementById("info-modal-body").innerHTML = `
+          <p>O <strong>Coworking Brasil</strong> conecta profissionais, startups e empresas aos melhores espaços de trabalho compartilhado em São Paulo e em todo o país.</p>
+          <p>Use os filtros na página para encontrar unidades com salas de reunião, endereço fiscal, acesso 24h ou bicicletário no seu bairro favorito.</p>
+        `;
+        document.getElementById("info-modal").classList.remove("hidden");
+      },
+
+      closeInfoModal() {
+        document.getElementById("info-modal").classList.add("hidden");
+      }
+    };
+
+    // Global backward-compatible aliases for inline header links
+    const openInfoModal = (t) => UI.openInfoModal(t);
+    const openRegisterModal = () => UI.openRegisterModal();
+    const openLoginModal = () => UI.openLoginModal();
+    const toggleMobileMap = () => UI.toggleMobileMap();
+
+    // ================= 6.5 TRACED-STYLE AMBIENT ANIMATIONS =================
+    const TracedMotion = {
+      PILL_ITEMS: [
+        { text: "33 espaços verificados em SP", color: "#26c6da" },
+        { text: "Acesso 24h na Faria Lima & Berrini", color: "#ebab66" },
+        { text: "Endereço Fiscal & Escritório Virtual", color: "#81c784" },
+        { text: "Salas de reunião sob demanda", color: "#90caf9" }
+      ],
+      pillIndex: 0,
+
+      init() {
+        this.buildMarqueeCapsules();
+        this.buildCtaDots();
+        this.startPillTicker();
+      },
+
+      buildMarqueeCapsules() {
+        const track = document.getElementById("timeline-marquee-track");
+        if (!track) return;
+        const widths = [96, 34, 58, 112, 74, 42, 88, 24, 66, 104, 48, 82];
+        const gaps = [22, 64, 32, 48, 28, 72, 36, 54, 40, 26, 58, 44];
+        const segment = widths.map((w, idx) =>
+          `<span class="block shrink-0 h-1.5 rounded-full bg-cwcyan-500/35" style="width:${w}px;margin-right:${gaps[idx]}px"></span>`
+        ).join("");
+        // Duplicado para loop contínuo sem salto
+        track.innerHTML = `<div class="flex items-center">${segment}</div><div class="flex items-center">${segment}</div>`;
+      },
+
+      buildCtaDots() {
+        const container = document.getElementById("share-cta-dots");
+        if (!container) return;
+        container.innerHTML = Array.from({ length: 28 }, (_, i) =>
+          `<span class="cta-dots__dot size-[2px] shrink-0 rounded-full bg-current opacity-45" style="--i:${i}"></span>`
+        ).join("");
+      },
+
+      startPillTicker() {
+        const dotEl = document.getElementById("timeline-pill-dot");
+        const wrapperEl = document.getElementById("timeline-pill-wrapper");
+        const textEl = document.getElementById("timeline-pill-text");
+        if (!dotEl || !wrapperEl || !textEl) return;
+
+        // Define largura inicial exata para transição fluida
+        wrapperEl.style.width = `${textEl.offsetWidth}px`;
+
+        setInterval(() => {
+          this.pillIndex = (this.pillIndex + 1) % this.PILL_ITEMS.length;
+          const next = this.PILL_ITEMS[this.pillIndex];
+          textEl.style.opacity = "0";
+          setTimeout(() => {
+            textEl.textContent = next.text;
+            dotEl.style.backgroundColor = next.color;
+            wrapperEl.style.width = `${textEl.scrollWidth}px`;
+            textEl.style.transition = "opacity 260ms ease-out";
+            textEl.style.opacity = "1";
+          }, 180);
+        }, 3600);
+      }
+    };
+
+    // ================= 7. EVENT LISTENERS & BOOTSTRAP =================
+    window.addEventListener("DOMContentLoaded", () => {
+      Store.init();
+      TracedMotion.init();
+      UI.populateAllFeaturesList();
+      MapService.init();
+
+      // Hydrate search & sort inputs from URL state
+      const searchInput = document.getElementById("search-input");
+      searchInput.value = Store.state.searchQuery;
+      document.getElementById("clear-search-btn").classList.toggle("hidden", Store.state.searchQuery === "");
+      document.getElementById("sort-select").value = Store.state.sortBy;
+
+      // Debounced search input
+      const debouncedSearch = Utils.debounce((val) => App.setSearch(val, true), 220);
+      searchInput.addEventListener("input", (e) => debouncedSearch(e.target.value));
+
+      document.getElementById("search-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        App.setSearch(searchInput.value, true);
+      });
+
+      document.getElementById("mobile-menu-btn").addEventListener("click", () => {
+        document.getElementById("mobile-menu").classList.toggle("hidden");
+      });
+
+      document.getElementById("space-contact-form").addEventListener("submit", function (e) {
+        e.preventDefault();
+        document.getElementById("modal-contact-success").classList.remove("hidden");
+        this.reset();
+      });
+
+      // Global Escape key & Backdrop click handling
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          UI.closeSpaceModal();
+          UI.closeCompareModal();
+          UI.closeInfoModal();
+          UI.toggleFiltersPanel(false);
+        }
+      });
+
+      ["space-modal", "compare-modal", "info-modal"].forEach(modalId => {
+        const el = document.getElementById(modalId);
+        el.addEventListener("click", (e) => {
+          if (e.target === el) el.classList.add("hidden");
+        });
+      });
+
+      document.addEventListener("click", (e) => {
+        const wrapper = document.getElementById("filters-popover-wrapper");
+        if (wrapper && !wrapper.contains(e.target)) {
+          UI.toggleFiltersPanel(false);
+        }
+      });
+
+      App.refresh(Store.state.searchQuery !== "" || Store.state.activeFeatures.size > 0);
+    });
+  </script>
+</body>
+</html>
