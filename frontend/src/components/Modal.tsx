@@ -44,11 +44,13 @@ export default function Modal({
     children,
 }: ModalProps) {
     const panelRef = useRef<HTMLDivElement>(null)
-    // Lidos sempre atualizados sem re-disparar o efeito (que roda uma vez, no mount).
+    // Mantidos atualizados sem re-disparar o efeito principal (que roda uma vez, no mount).
     const onCloseRef = useRef(onClose)
-    onCloseRef.current = onClose
     const busyRef = useRef(busy)
-    busyRef.current = busy
+    useEffect(() => {
+        onCloseRef.current = onClose
+        busyRef.current = busy
+    })
 
     useEffect(() => {
         const previouslyFocused = document.activeElement as HTMLElement | null

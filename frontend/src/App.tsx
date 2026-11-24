@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth } from './auth/context'
+import ErrorBoundary from './components/ErrorBoundary'
 import { ToastContainer } from './components/Toast'
 import { navigate, useRoute, useRouteId, type Route } from './lib/route'
 import Home from './pages/Home'
@@ -91,9 +92,11 @@ export default function App() {
 
     return (
         <QueryClientProvider client={queryClient}>
-            <Suspense fallback={<FullScreenLoader label="Carregando..." />}>
-                <AppContent />
-            </Suspense>
+            <ErrorBoundary>
+                <Suspense fallback={<FullScreenLoader label="Carregando..." />}>
+                    <AppContent />
+                </Suspense>
+            </ErrorBoundary>
             <ToastContainer />
         </QueryClientProvider>
     )
