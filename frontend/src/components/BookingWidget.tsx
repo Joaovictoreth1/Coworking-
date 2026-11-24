@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react'
 import { useAuth } from '../auth/context'
 import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
 import { navigate } from '../lib/route'
-import type { Space } from '../lib/spaces'
-import { formatCurrency, inputClass, primaryButton } from '../lib/ui'
+import { formatBRL, type Space } from '../lib/spaces'
+import { inputClass, primaryButton } from '../lib/ui'
 
 interface BookingWidgetProps {
     space: Space
@@ -88,9 +88,9 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         {space.is_free
                             ? 'Gratuito'
                             : space.hourly_price
-                              ? formatCurrency(space.hourly_price)
+                              ? formatBRL(space.hourly_price)
                               : space.daily_price
-                                ? formatCurrency(space.daily_price)
+                                ? formatBRL(space.daily_price)
                                 : 'Sob consulta'}
                     </span>
                     {!space.is_free && (
@@ -190,7 +190,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200/80">
                             <span>Total estimado:</span>
                             <span className="text-base text-emerald-600">
-                                {formatCurrency(preview.total_price)}
+                                {formatBRL(preview.total_price)}
                             </span>
                         </div>
                     </div>

@@ -7,8 +7,8 @@ import {
     useAdminUpdateBookingStatusMutation,
 } from '../../hooks/useBookings'
 import { href } from '../../lib/route'
-import type { Booking } from '../../lib/spaces'
-import { formatCurrency, primaryButton, secondaryButton } from '../../lib/ui'
+import { formatBRL, type Booking } from '../../lib/spaces'
+import { primaryButton, secondaryButton } from '../../lib/ui'
 
 function getBadge(status: Booking['status']) {
     switch (status) {
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
                         ) : (
                             <div className="mt-2">
                                 <span className="text-3xl font-black text-slate-900">
-                                    {formatCurrency(metrics?.total_revenue ?? 0)}
+                                    {formatBRL(metrics?.total_revenue ?? 0)}
                                 </span>
                                 <span className="block text-xs text-slate-500 mt-1">
                                     Reservas confirmadas e concluídas
@@ -369,7 +369,7 @@ export default function AdminDashboard() {
                                             <td className="py-3.5 px-5 font-bold text-slate-900">
                                                 {b.total_price === 0
                                                     ? 'Gratuito'
-                                                    : formatCurrency(b.total_price)}
+                                                    : formatBRL(b.total_price)}
                                             </td>
                                             <td className="py-3.5 px-5">{getBadge(b.status)}</td>
                                             <td className="py-3.5 px-5 text-right whitespace-nowrap">
