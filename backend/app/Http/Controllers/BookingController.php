@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\BookingConflictException;
+use App\Http\Requests\CancelBookingRequest;
+use App\Http\Requests\PreviewBookingRequest;
 use App\Http\Requests\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
@@ -31,11 +34,13 @@ class BookingController extends Controller
             ->with(['space', 'user'])
             ->latest('start_time');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        $status = $request->query('status');
+        if (is_string($status) && in_array($status, Booking::ALL_STATUSES, true)) {
+            $query->where('status', $status);
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 15));
+        $perPage = max(1, min(50, (int) $request->query('per_page', 15)));
+        $bookings = $query->paginate($perPage);
 
         return BookingResource::collection($bookings);
     }
@@ -77,9 +82,9 @@ class BookingController extends Controller
     /**
      * Cancela uma reserva existente.
      */
-    public function cancel(Request $request, Booking $booking): JsonResponse
+    public function cancel(CancelBookingRequest $request, Booking $booking): JsonResponse
     {
-        $reason = $request->input('reason');
+        $reason = $request->validated('reason');
         $updated = $this->bookingService->cancelBooking($booking, $request->user(), $reason);
         $updated->load(['space', 'user']);
 
@@ -92,15 +97,20 @@ class BookingController extends Controller
     /**
      * Prévia em tempo real de disponibilidade e valor estimado.
      */
-    public function preview(Request $request, Space $space): JsonResponse
+    public function preview(PreviewBookingRequest $request, Space $space): JsonResponse
     {
-        $request->validate([
-            'start_time' => ['required', 'date'],
-            'end_time' => ['required', 'date', 'after:start_time'],
-        ]);
+        if (! $space->is_active) {
+            return response()->json([
+                'available' => false,
+                'conflict' => false,
+                'total_price' => 0.00,
+                'errors' => ['space_id' => ['Este espaço está temporariamente inativo para reservas.']],
+                'message' => 'Este espaço está temporariamente inativo para reservas.',
+            ], 422);
+        }
 
-        $startTime = Carbon::parse($request->input('start_time'));
-        $endTime = Carbon::parse($request->input('end_time'));
+        $startTime = Carbon::parse($request->validated('start_time'));
+        $endTime = Carbon::parse($request->validated('end_time'));
 
         try {
             $this->bookingService->validateWorkingHours($space, $startTime, $endTime);
@@ -109,13 +119,23 @@ class BookingController extends Controller
 
             return response()->json([
                 'available' => true,
+                'conflict' => false,
                 'total_price' => $price,
                 'duration_hours' => (int) ceil($startTime->diffInMinutes($endTime) / 60),
                 'message' => 'Horário disponível para reserva.',
             ]);
+        } catch (BookingConflictException $e) {
+            return response()->json([
+                'available' => false,
+                'conflict' => true,
+                'total_price' => 0.00,
+                'errors' => $e->errors,
+                'message' => $e->getMessage(),
+            ], 409);
         } catch (ValidationException $e) {
             return response()->json([
                 'available' => false,
+                'conflict' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
                 'message' => current(current($e->errors())),

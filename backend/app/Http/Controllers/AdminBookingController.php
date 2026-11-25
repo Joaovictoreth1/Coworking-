@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateBookingStatusRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Validation\Rule;
 
 class AdminBookingController extends Controller
 {
@@ -27,8 +27,9 @@ class AdminBookingController extends Controller
             ->with(['space', 'user'])
             ->latest('start_time');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        $status = $request->query('status');
+        if (is_string($status) && in_array($status, Booking::ALL_STATUSES, true)) {
+            $query->where('status', $status);
         }
 
         if ($request->filled('space_id')) {
@@ -44,14 +45,16 @@ class AdminBookingController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = '%' . $request->query('search') . '%';
+            $escaped = addcslashes((string) $request->query('search'), '%_\\');
+            $term = "%{$escaped}%";
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                  ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                    ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 20));
+        $perPage = max(1, min(100, (int) $request->query('per_page', 20)));
+        $bookings = $query->paginate($perPage);
 
         return BookingResource::collection($bookings);
     }
@@ -59,23 +62,21 @@ class AdminBookingController extends Controller
     /**
      * Atualiza o status de uma reserva (ex: aprovar, cancelar, concluir).
      */
-    public function updateStatus(Request $request, Booking $booking): JsonResponse
+    public function updateStatus(UpdateBookingStatusRequest $request, Booking $booking): JsonResponse
     {
-        $validated = $request->validate([
-            'status' => ['required', 'string', Rule::in(Booking::ALL_STATUSES)],
-            'notes' => ['nullable', 'string', 'max:1000'],
-        ]);
+        $validated = $request->validated();
 
-        $booking->update([
-            'status' => $validated['status'],
-            'notes' => $validated['notes'] ?? $booking->notes,
-        ]);
+        $updated = $this->bookingService->updateBookingStatus(
+            $booking,
+            $validated['status'],
+            $validated['notes'] ?? null,
+        );
 
-        $booking->load(['space', 'user']);
+        $updated->load(['space', 'user']);
 
         return response()->json([
             'message' => 'Status da reserva atualizado com sucesso.',
-            'booking' => new BookingResource($booking),
+            'booking' => new BookingResource($updated),
         ]);
     }
 
