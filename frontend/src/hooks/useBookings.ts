@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ApiError } from '../lib/api'
+import { ApiError, getErrorMessage } from '../lib/api'
 import { bookingsApi, type BookingPayload, type BookingPreviewResult } from '../lib/bookings'
 import type { AdminMetrics, Booking, Paginated } from '../lib/spaces'
 import { toast } from '../store/useToastStore'
@@ -42,13 +42,16 @@ export function useCreateBookingMutation(spaceId: number) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
-            toast.success('Reserva confirmada com sucesso! 🚀')
+            toast.success('Reserva confirmada com sucesso!')
         },
         onError: (err: unknown) => {
-            const message = err instanceof ApiError ? err.message : 'Falha ao confirmar reserva.'
-            toast.error(message)
+            if (err instanceof ApiError && err.status === 409) {
+                queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
+            }
+            toast.error(getErrorMessage(err, 'Falha ao confirmar reserva.'))
         },
     })
 }
@@ -62,13 +65,13 @@ export function useCancelBookingMutation() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva cancelada com sucesso.')
         },
         onError: (err: unknown) => {
-            const message = err instanceof ApiError ? err.message : 'Não foi possível cancelar a reserva.'
-            toast.error(message)
+            toast.error(getErrorMessage(err, 'Não foi possível cancelar a reserva.'))
         },
     })
 }
@@ -95,7 +98,7 @@ export function useAdminMetricsQuery() {
             const res = await bookingsApi.adminMetrics()
             return res
         },
-        refetchInterval: 30000, // Atualiza a cada 30 segundos no dashboard
+        refetchInterval: 30000,
     })
 }
 
@@ -118,12 +121,11 @@ export function useAdminUpdateBookingStatusMutation() {
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             toast.success('Status da reserva atualizado com sucesso!')
         },
         onError: (err: unknown) => {
-            const message =
-                err instanceof ApiError ? err.message : 'Erro ao atualizar status da reserva.'
-            toast.error(message)
+            toast.error(getErrorMessage(err, 'Erro ao atualizar status da reserva.'))
         },
     })
 }

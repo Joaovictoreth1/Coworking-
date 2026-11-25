@@ -11,6 +11,7 @@ export interface BookingPayload {
 
 export interface BookingPreviewResult {
     available: boolean
+    conflict?: boolean
     total_price: number
     duration_hours: number
     message: string

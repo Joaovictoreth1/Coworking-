@@ -126,6 +126,8 @@ export interface Booking {
     status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
     voucher_code?: string
     notes: string | null
+    cancelled_at?: string | null
+    cancellation_reason?: string | null
     can_cancel: boolean
     created_at: string
     space?: {
