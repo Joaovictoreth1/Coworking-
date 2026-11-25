@@ -7,6 +7,7 @@ namespace Tests\Feature;
 use App\Models\Booking;
 use App\Models\Space;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -55,6 +56,33 @@ class AdminSpaceTest extends TestCase
         $this->assertDatabaseHas('spaces', ['name' => 'Sala Premium Paulista']);
     }
 
+    public function test_admin_space_creation_validates_pricing_and_schedule(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $token = $admin->createApiToken('admin-test');
+
+        $invalidSchedule = array_map(fn ($day) => [
+            'day' => $day,
+            'enabled' => false,
+            'from' => null,
+            'to' => null,
+        ], range(0, 6));
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson('/api/admin/spaces', [
+                'name' => 'Sala Sem Preço',
+                'street' => 'Av. Paulista',
+                'city' => 'São Paulo',
+                'state' => 'SP',
+                'is_free' => false,
+                'is_active' => true,
+                'opening_hours' => $invalidSchedule,
+                'availability' => $invalidSchedule,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['hourly_price', 'availability']);
+    }
+
     public function test_regular_user_cannot_create_space(): void
     {
         $user = User::factory()->create(['role' => User::ROLE_USER]);
@@ -74,6 +102,31 @@ class AdminSpaceTest extends TestCase
 
         $response->assertStatus(403);
         $this->assertDatabaseMissing('spaces', ['name' => 'Tentativa de Criar Sala']);
+    }
+
+    public function test_regular_user_cannot_access_admin_bookings_or_metrics(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_USER]);
+        $token = $user->createApiToken('user-test');
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_PENDING]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/bookings')
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->patchJson("/api/admin/bookings/{$booking->id}/status", [
+                'status' => Booking::STATUS_CONFIRMED,
+            ])
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/metrics')
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/dashboard')
+            ->assertStatus(403);
     }
 
     public function test_admin_can_access_metrics(): void
@@ -121,6 +174,42 @@ class AdminSpaceTest extends TestCase
         $this->assertDatabaseHas('bookings', [
             'id' => $booking->id,
             'status' => Booking::STATUS_CONFIRMED,
+        ]);
+    }
+
+    public function test_admin_cannot_reactivate_cancelled_booking_when_slot_overlaps(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $token = $admin->createApiToken('admin-test');
+
+        $space = Space::factory()->create(['is_active' => true, 'opening_hours' => null]);
+        $start = Carbon::now()->addDays(4)->setHour(10)->setMinute(0)->setSecond(0);
+        $end = (clone $start)->addHours(2);
+
+        $cancelledBooking = Booking::factory()->create([
+            'space_id' => $space->id,
+            'start_time' => $start,
+            'end_time' => $end,
+            'status' => Booking::STATUS_CANCELLED,
+        ]);
+
+        // Outra reserva já ocupou o mesmo horário
+        Booking::factory()->create([
+            'space_id' => $space->id,
+            'start_time' => $start,
+            'end_time' => $end,
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->patchJson("/api/admin/bookings/{$cancelledBooking->id}/status", [
+                'status' => Booking::STATUS_CONFIRMED,
+            ])
+            ->assertStatus(409);
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $cancelledBooking->id,
+            'status' => Booking::STATUS_CANCELLED,
         ]);
     }
 }
