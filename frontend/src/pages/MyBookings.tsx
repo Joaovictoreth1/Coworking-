@@ -2,13 +2,13 @@ import { useState } from 'react'
 import ComponentBody from '../components/ComponentBody'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
+import { getErrorMessage } from '../lib/api'
 import { href } from '../lib/route'
 import { formatBRL, type Booking } from '../lib/spaces'
 import { primaryButton, secondaryButton } from '../lib/ui'
+import { useUiStore, type BookingStatusTab } from '../store/useUiStore'
 
-type StatusFilter = '' | 'confirmed' | 'pending' | 'completed' | 'cancelled'
-
-const TABS: { label: string; value: StatusFilter }[] = [
+const TABS: { label: string; value: BookingStatusTab }[] = [
     { label: 'Todas', value: '' },
     { label: 'Confirmadas', value: 'confirmed' },
     { label: 'Pendentes', value: 'pending' },
@@ -75,12 +75,13 @@ function formatTime(iso: string) {
 }
 
 export default function MyBookings() {
-    const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
+    const selectedTab = useUiStore((s) => s.bookingsTab)
+    const setSelectedTab = useUiStore((s) => s.setBookingsTab)
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
-    const { data: bookings, isLoading, error } = useUserBookingsQuery(selectedTab || undefined)
+    const { data: bookings, isLoading, error, refetch } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
@@ -140,11 +141,17 @@ export default function MyBookings() {
                             <BookingCardSkeleton />
                         </>
                     ) : error ? (
-                        <div className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6">
+                        <div className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3">
                             <p className="text-rose-700 font-semibold">
-                                Não foi possível carregar suas reservas.
+                                {getErrorMessage(error, 'Não foi possível carregar suas reservas.')}
                             </p>
-                            <p className="text-xs text-rose-500 mt-1">Tente novamente mais tarde.</p>
+                            <button
+                                type="button"
+                                onClick={() => void refetch()}
+                                className={secondaryButton}
+                            >
+                                Tentar novamente
+                            </button>
                         </div>
                     ) : !bookings || bookings.length === 0 ? (
                         <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm">

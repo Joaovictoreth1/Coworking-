@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useAuth } from '../auth/context'
 import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import { ApiError, getErrorMessage } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
 import { inputClass, primaryButton } from '../lib/ui'
@@ -23,8 +24,8 @@ export function BookingWidget({ space }: BookingWidgetProps) {
     const [startTime, setStartTime] = useState<string>('09:00')
     const [endTime, setEndTime] = useState<string>('13:00')
     const [notes, setNotes] = useState<string>('')
+    const [submitError, setSubmitError] = useState<string | null>(null)
 
-    // Monta ISO string para API
     const startIso = useMemo(() => {
         if (!date || !startTime) return ''
         return `${date}T${startTime}:00`
@@ -35,12 +36,22 @@ export function BookingWidget({ space }: BookingWidgetProps) {
         return `${date}T${endTime}:00`
     }, [date, endTime])
 
-    const isValidRange = Boolean(startIso && endIso && startTime < endTime)
+    const rangeError = useMemo(() => {
+        if (!date || !startTime || !endTime) return null
+        if (startTime >= endTime) {
+            return 'O horário de saída deve ser posterior ao horário de entrada.'
+        }
+        if (notes.length > 1000) {
+            return 'As observações não podem exceder 1000 caracteres.'
+        }
+        return null
+    }, [date, startTime, endTime, notes])
 
-    // Consulta prévia e validação em tempo real de conflitos
+    const isValidRange = Boolean(startIso && endIso && !rangeError)
+
     const {
         data: preview,
-        isLoading: isChecking,
+        isFetching: isChecking,
         error: previewError,
     } = useBookingPreviewQuery(space.id, startIso, endIso, isValidRange)
 
@@ -48,13 +59,14 @@ export function BookingWidget({ space }: BookingWidgetProps) {
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
+        setSubmitError(null)
 
         if (!user) {
             navigate('login')
             return
         }
 
-        if (!isValidRange || preview?.available === false) {
+        if (!isValidRange || preview?.available === false || Boolean(previewError)) {
             return
         }
 
@@ -65,16 +77,23 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 notes: notes.trim() || undefined,
             })
             navigate('my-bookings')
-        } catch {
-            // Tratado pelo onError do hook
+        } catch (err) {
+            setSubmitError(getErrorMessage(err, 'Não foi possível concluir a reserva.'))
         }
     }
 
-    const conflictMessage =
+    const isConflict =
+        preview?.conflict === true ||
+        (previewError instanceof ApiError && previewError.status === 409)
+
+    const availabilityMessage =
         preview?.available === false
             ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
             : previewError
-              ? 'Horário indisponível ou fora do período de funcionamento.'
+              ? getErrorMessage(
+                    previewError,
+                    'Horário indisponível ou fora do período de funcionamento.',
+                )
               : null
 
     return (
@@ -106,9 +125,11 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             </div>
 
             <form onSubmit={handleBook} className="mt-5 space-y-4">
-                {/* Data da Reserva */}
                 <div>
-                    <label htmlFor="booking-date" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    <label
+                        htmlFor="booking-date"
+                        className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                    >
                         Data
                     </label>
                     <input
@@ -116,90 +137,151 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         type="date"
                         value={date}
                         min={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setDate(e.target.value)}
+                        onChange={(e) => {
+                            setDate(e.target.value)
+                            setSubmitError(null)
+                        }}
                         className={inputClass(false, 'py-2')}
                         required
                     />
                 </div>
 
-                {/* Intervalo de Horário */}
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label htmlFor="booking-start-time" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                        <label
+                            htmlFor="booking-start-time"
+                            className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                        >
                             Entrada
                         </label>
                         <input
                             id="booking-start-time"
                             type="time"
                             value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
-                            className={inputClass(false, 'py-2')}
+                            onChange={(e) => {
+                                setStartTime(e.target.value)
+                                setSubmitError(null)
+                            }}
+                            className={inputClass(Boolean(rangeError), 'py-2')}
                             required
                         />
                     </div>
                     <div>
-                        <label htmlFor="booking-end-time" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                        <label
+                            htmlFor="booking-end-time"
+                            className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                        >
                             Saída
                         </label>
                         <input
                             id="booking-end-time"
                             type="time"
                             value={endTime}
-                            onChange={(e) => setEndTime(e.target.value)}
-                            className={inputClass(false, 'py-2')}
+                            onChange={(e) => {
+                                setEndTime(e.target.value)
+                                setSubmitError(null)
+                            }}
+                            className={inputClass(Boolean(rangeError), 'py-2')}
                             required
                         />
                     </div>
                 </div>
 
-                {/* Observações Opcionais */}
                 <div>
-                    <label htmlFor="booking-notes" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    <label
+                        htmlFor="booking-notes"
+                        className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                    >
                         Observações (opcional)
                     </label>
                     <textarea
                         id="booking-notes"
                         rows={2}
+                        maxLength={1000}
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
+                        onChange={(e) => {
+                            setNotes(e.target.value)
+                            setSubmitError(null)
+                        }}
                         placeholder="Ex: Reunião para 6 pessoas com projetor"
-                        className={inputClass(false, 'text-sm resize-none py-2')}
+                        className={inputClass(notes.length > 1000, 'text-sm resize-none py-2')}
                     />
                 </div>
 
-                {/* Feedback em Tempo Real de Conflito de Horário */}
-                {conflictMessage && (
-                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium space-y-1">
-                        <div className="flex items-center gap-2 font-bold text-rose-800">
-                            <span className="text-base">⚠️</span>
-                            <span>Horário Ocupado</span>
-                        </div>
-                        <p>{conflictMessage}</p>
+                {/* Validação inline de intervalo */}
+                {rangeError && (
+                    <div
+                        role="alert"
+                        className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium"
+                    >
+                        {rangeError}
                     </div>
                 )}
 
-                {/* Resumo do Valor Calculado */}
-                {isValidRange && preview?.available && (
+                {/* Estado de carregamento da verificação de disponibilidade */}
+                {isValidRange && isChecking && (
+                    <div
+                        className="flex items-center gap-2 p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-medium"
+                        aria-busy="true"
+                    >
+                        <span className="w-3.5 h-3.5 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin" />
+                        <span>Verificando disponibilidade e valor...</span>
+                    </div>
+                )}
+
+                {/* Feedback em tempo real de conflito ou indisponibilidade */}
+                {!isChecking && isValidRange && availabilityMessage && (
+                    <div
+                        role="alert"
+                        className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium space-y-1"
+                    >
+                        <div className="flex items-center gap-2 font-bold text-rose-800">
+                            <span>{isConflict ? 'Horário já reservado' : 'Horário indisponível'}</span>
+                        </div>
+                        <p>{availabilityMessage}</p>
+                    </div>
+                )}
+
+                {/* Erro ao enviar a reserva */}
+                {submitError && (
+                    <div
+                        role="alert"
+                        className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium"
+                    >
+                        {submitError}
+                    </div>
+                )}
+
+                {/* Resumo do valor calculado */}
+                {!isChecking && isValidRange && preview?.available && !previewError && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>
                             <span className="font-semibold text-slate-900">
-                                {preview.duration_hours} {preview.duration_hours === 1 ? 'hora' : 'horas'}
+                                {preview.duration_hours}{' '}
+                                {preview.duration_hours === 1 ? 'hora' : 'horas'}
                             </span>
                         </div>
                         <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200/80">
                             <span>Total estimado:</span>
                             <span className="text-base text-emerald-600">
-                                {formatBRL(preview.total_price)}
+                                {preview.total_price === 0
+                                    ? 'Gratuito'
+                                    : formatBRL(preview.total_price)}
                             </span>
                         </div>
                     </div>
                 )}
 
-                {/* Botão de Ação */}
                 <button
                     type="submit"
-                    disabled={isChecking || createBooking.isPending || (isValidRange && preview?.available === false)}
+                    disabled={
+                        !isValidRange ||
+                        isChecking ||
+                        createBooking.isPending ||
+                        preview?.available === false ||
+                        Boolean(previewError)
+                    }
                     className={`${primaryButton} w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                     {createBooking.isPending ? (
@@ -209,7 +291,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         </span>
                     ) : !user ? (
                         'Entrar para Reservar'
-                    ) : conflictMessage ? (
+                    ) : availabilityMessage ? (
                         'Horário Indisponível'
                     ) : (
                         'Confirmar Reserva'

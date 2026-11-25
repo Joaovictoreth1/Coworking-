@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Alert } from '../../components/admin/FormControls'
 import ComponentBody from '../../components/ComponentBody'
 import { Skeleton } from '../../components/Skeleton'
 import {
@@ -6,9 +7,11 @@ import {
     useAdminMetricsQuery,
     useAdminUpdateBookingStatusMutation,
 } from '../../hooks/useBookings'
+import { getErrorMessage } from '../../lib/api'
 import { href } from '../../lib/route'
 import { formatBRL, type Booking } from '../../lib/spaces'
 import { primaryButton, secondaryButton } from '../../lib/ui'
+import { useUiStore } from '../../store/useUiStore'
 
 function getBadge(status: Booking['status']) {
     switch (status) {
@@ -40,11 +43,24 @@ function getBadge(status: Booking['status']) {
 }
 
 export default function AdminDashboard() {
-    const [statusFilter, setStatusFilter] = useState<string>('')
-    const [search, setSearch] = useState<string>('')
+    const statusFilter = useUiStore((s) => s.adminBookingStatus)
+    const setStatusFilter = useUiStore((s) => s.setAdminBookingStatus)
+    const search = useUiStore((s) => s.adminBookingSearch)
+    const setSearch = useUiStore((s) => s.setAdminBookingSearch)
+    const [pendingId, setPendingId] = useState<number | null>(null)
 
-    const { data: metrics, isLoading: loadingMetrics } = useAdminMetricsQuery()
-    const { data: bookingsData, isLoading: loadingBookings } = useAdminBookingsQuery({
+    const {
+        data: metrics,
+        isLoading: loadingMetrics,
+        error: metricsError,
+        refetch: refetchMetrics,
+    } = useAdminMetricsQuery()
+    const {
+        data: bookingsData,
+        isLoading: loadingBookings,
+        error: bookingsError,
+        refetch: refetchBookings,
+    } = useAdminBookingsQuery({
         status: statusFilter || undefined,
         search: search.trim() || undefined,
     })
@@ -52,7 +68,14 @@ export default function AdminDashboard() {
     const updateStatus = useAdminUpdateBookingStatusMutation()
 
     async function handleStatusChange(bookingId: number, status: string) {
-        await updateStatus.mutateAsync({ bookingId, status })
+        setPendingId(bookingId)
+        try {
+            await updateStatus.mutateAsync({ bookingId, status })
+        } catch {
+            // Tratado no onError do hook
+        } finally {
+            setPendingId(null)
+        }
     }
 
     const bookings = bookingsData?.data ?? []
@@ -90,6 +113,22 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Métricas e KPIs */}
+                {metricsError && (
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex-1">
+                            <Alert type="error">
+                                {getErrorMessage(metricsError, 'Não foi possível carregar as métricas.')}
+                            </Alert>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => void refetchMetrics()}
+                            className={secondaryButton}
+                        >
+                            Tentar novamente
+                        </button>
+                    </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Faturamento Estimado */}
                     <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
@@ -326,6 +365,24 @@ export default function AdminDashboard() {
                                             Carregando reservas...
                                         </td>
                                     </tr>
+                                ) : bookingsError ? (
+                                    <tr>
+                                        <td colSpan={7} className="py-10 text-center space-y-3">
+                                            <p className="text-rose-700 font-semibold">
+                                                {getErrorMessage(
+                                                    bookingsError,
+                                                    'Não foi possível carregar as reservas.',
+                                                )}
+                                            </p>
+                                            <button
+                                                type="button"
+                                                onClick={() => void refetchBookings()}
+                                                className={secondaryButton}
+                                            >
+                                                Tentar novamente
+                                            </button>
+                                        </td>
+                                    </tr>
                                 ) : bookings.length === 0 ? (
                                     <tr>
                                         <td colSpan={7} className="py-12 text-center text-slate-500">
@@ -377,8 +434,9 @@ export default function AdminDashboard() {
                                                     {b.status === 'pending' && (
                                                         <button
                                                             type="button"
+                                                            disabled={pendingId === b.id}
                                                             onClick={() => handleStatusChange(b.id, 'confirmed')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer disabled:opacity-50"
                                                         >
                                                             Aprovar
                                                         </button>
@@ -386,8 +444,9 @@ export default function AdminDashboard() {
                                                     {b.status === 'confirmed' && (
                                                         <button
                                                             type="button"
+                                                            disabled={pendingId === b.id}
                                                             onClick={() => handleStatusChange(b.id, 'completed')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer disabled:opacity-50"
                                                         >
                                                             Concluir
                                                         </button>
@@ -395,8 +454,9 @@ export default function AdminDashboard() {
                                                     {b.status !== 'cancelled' && b.status !== 'completed' && (
                                                         <button
                                                             type="button"
+                                                            disabled={pendingId === b.id}
                                                             onClick={() => handleStatusChange(b.id, 'cancelled')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer disabled:opacity-50"
                                                         >
                                                             Cancelar
                                                         </button>
