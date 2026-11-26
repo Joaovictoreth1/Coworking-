@@ -76,6 +76,11 @@ function AppContent() {
 }
 
 export default function App() {
+    const { user } = useAuth()
+    return <SessionApp key={user?.id ?? 'guest'} />
+}
+
+function SessionApp() {
     const [queryClient] = useState(
         () =>
             new QueryClient({
