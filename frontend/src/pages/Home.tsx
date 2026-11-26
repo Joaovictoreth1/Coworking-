@@ -44,7 +44,7 @@ export default function Home() {
         errorMessage,
         filtersOn,
         favorites,
-    } = useSpaceSearch({ coords: userCoords, sortByDistance })
+    } = useSpaceSearch({ coords: userCoords, sortByDistance: viewMode === 'map' && sortByDistance })
 
     return (
         <ComponentBody>
@@ -140,13 +140,14 @@ export default function Home() {
                                     key={preset.label}
                                     type="button"
                                     aria-pressed={active}
-                                    onClick={() =>
+                                    onClick={() => {
+                                        if (preset.sort) setSortByDistance(false)
                                         setFilters({
                                             ...filters,
                                             priceType: preset.priceType,
                                             sort: preset.sort ?? (filters.sort === 'rating' ? 'recent' : filters.sort),
                                         })
-                                    }
+                                    }}
                                     className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
                                         active
                                             ? 'bg-white text-slate-900 shadow-sm'
@@ -193,7 +194,14 @@ export default function Home() {
             </section>
 
             <div className="mt-5">
-                <SpaceFilters value={filters} onChange={setFilters} onClear={clearFilters} />
+                <SpaceFilters
+                    value={filters}
+                    onChange={(next) => {
+                        if (next.sort !== filters.sort) setSortByDistance(false)
+                        setFilters(next)
+                    }}
+                    onClear={clearFilters}
+                />
             </div>
 
             <section aria-labelledby="spaces-results-heading" className="mt-6">
