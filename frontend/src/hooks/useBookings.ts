@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError, getErrorMessage } from '../lib/api'
-import { bookingsApi, type BookingPayload, type BookingPreviewResult } from '../lib/bookings'
+import {
+    bookingsApi,
+    type BookingAvailabilityResult,
+    type BookingPayload,
+    type BookingPreviewResult,
+} from '../lib/bookings'
 import type { AdminMetrics, Booking, Paginated } from '../lib/spaces'
 import { toast } from '../store/useToastStore'
 
@@ -11,6 +16,17 @@ export function useUserBookingsQuery(status?: string) {
             const res = await bookingsApi.list(status)
             return res.data
         },
+    })
+}
+
+export function useBookingAvailabilityQuery(spaceId: number, date: string, enabled = true) {
+    return useQuery<BookingAvailabilityResult>({
+        queryKey: ['booking-availability', spaceId, date],
+        queryFn: async () => {
+            return await bookingsApi.availability(spaceId, date)
+        },
+        enabled: enabled && Boolean(spaceId && date),
+        staleTime: 30_000,
     })
 }
 
@@ -43,6 +59,7 @@ export function useCreateBookingMutation(spaceId: number) {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
             queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-availability', spaceId] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva confirmada com sucesso!')
@@ -50,6 +67,7 @@ export function useCreateBookingMutation(spaceId: number) {
         onError: (err: unknown) => {
             if (err instanceof ApiError && err.status === 409) {
                 queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
+                queryClient.invalidateQueries({ queryKey: ['booking-availability', spaceId] })
             }
             toast.error(getErrorMessage(err, 'Falha ao confirmar reserva.'))
         },
@@ -66,6 +84,7 @@ export function useCancelBookingMutation() {
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
             queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-availability'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva cancelada com sucesso.')
@@ -122,6 +141,7 @@ export function useAdminUpdateBookingStatusMutation() {
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
             queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-availability'] })
             toast.success('Status da reserva atualizado com sucesso!')
         },
         onError: (err: unknown) => {

@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/context'
-import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import {
+    useBookingAvailabilityQuery,
+    useBookingPreviewQuery,
+    useCreateBookingMutation,
+} from '../hooks/useBookings'
 import { ApiError, getErrorMessage } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
@@ -27,6 +31,15 @@ function toLocalIsoWithOffset(date: string, time: string): string {
     const hh = String(Math.floor(abs / 60)).padStart(2, '0')
     const mm = String(abs % 60).padStart(2, '0')
     return `${date}T${time}:00${sign}${hh}:${mm}`
+}
+
+function formatTimeRange(startIso: string, endIso: string): string {
+    const start = new Date(startIso)
+    const end = new Date(endIso)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return ''
+    const fmt = (d: Date) =>
+        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    return `${fmt(start)} – ${fmt(end)}`
 }
 
 export function BookingWidget({ space }: BookingWidgetProps) {
@@ -74,6 +87,12 @@ export function BookingWidget({ space }: BookingWidgetProps) {
 
     const canPreview =
         space.is_active && hasCompleteInputs && !isInvalidOrder && !isPastDateTime && !isNotesTooLong
+
+    const { data: availability, isFetching: isLoadingAvailability } = useBookingAvailabilityQuery(
+        space.id,
+        date,
+        space.is_active && Boolean(date),
+    )
 
     const {
         data: preview,
@@ -205,6 +224,56 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         required
                     />
                 </div>
+
+                {space.is_active && (availability || isLoadingAvailability) && (
+                    <div
+                        aria-label="Disponibilidade do dia"
+                        className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-xs space-y-1.5"
+                    >
+                        {isLoadingAvailability && !availability ? (
+                            <p className="text-slate-500">Carregando agenda do dia…</p>
+                        ) : availability && !availability.open ? (
+                            <p className="font-medium text-amber-800">
+                                Este espaço não funciona na data selecionada.
+                            </p>
+                        ) : availability ? (
+                            <>
+                                {availability.window && (
+                                    <p className="text-slate-600">
+                                        Funcionamento:{' '}
+                                        <span className="font-semibold text-slate-800">
+                                            {availability.window.from} às {availability.window.to}
+                                        </span>
+                                    </p>
+                                )}
+                                {availability.busy.length > 0 ? (
+                                    <div className="space-y-1">
+                                        <p className="text-slate-500 font-medium">
+                                            Horários já ocupados:
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {availability.busy.map((slot) => (
+                                                <span
+                                                    key={`${slot.start_time}-${slot.end_time}`}
+                                                    className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 font-medium text-rose-700 ring-1 ring-inset ring-rose-200"
+                                                >
+                                                    {formatTimeRange(
+                                                        slot.start_time,
+                                                        slot.end_time,
+                                                    )}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-emerald-700 font-medium">
+                                        Nenhum horário ocupado nesta data.
+                                    </p>
+                                )}
+                            </>
+                        ) : null}
+                    </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-3">
                     <div>
