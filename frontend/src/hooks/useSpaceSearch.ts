@@ -88,6 +88,10 @@ export function useSpaceSearch() {
     const favorites = useFavoriteToggle(applyFavorite)
 
     const clearFilters = useCallback(() => setFilters((f) => ({ ...EMPTY_FILTERS, sort: f.sort })), [])
+    const clearAll = useCallback(() => {
+        setSearch('')
+        setFilters(EMPTY_FILTERS)
+    }, [])
 
     const goToPage = useCallback((next: number) => {
         setPage(next)
@@ -107,6 +111,8 @@ export function useSpaceSearch() {
         filters,
         setFilters,
         clearFilters,
+        clearAll,
+        refetch: query.refetch,
         // paginação
         page,
         goToPage,

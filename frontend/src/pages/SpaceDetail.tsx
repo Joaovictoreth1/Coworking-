@@ -3,7 +3,15 @@ import { Alert } from '../components/admin/FormControls'
 import { BookingWidget } from '../components/BookingWidget'
 import ComponentBody from '../components/ComponentBody'
 import FavoriteButton from '../components/FavoriteButton'
-import { ArrowLeftIcon, CheckIcon, ImageIcon, MapPinIcon, UserIcon } from '../components/icons'
+import {
+    ArrowLeftIcon,
+    CheckIcon,
+    ChevronLeftIcon,
+    ChevronRightIcon,
+    ImageIcon,
+    MapPinIcon,
+    UserIcon,
+} from '../components/icons'
 import Reviews from '../components/Reviews'
 import { Stars } from '../components/StarRating'
 import { ApiError } from '../lib/api'
@@ -19,16 +27,34 @@ import {
     type ReviewSummary,
     type Space,
 } from '../lib/spaces'
+import { secondaryButton } from '../lib/ui'
+import { useToastStore } from '../store/useToastStore'
 
 function ScheduleList({ schedule, offLabel }: { schedule: DaySchedule[]; offLabel: string }) {
+    const today = new Date().getDay()
     return (
-        <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+        <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
             {WEEKDAYS.map(({ day, label }) => {
                 const entry = schedule.find((d) => d.day === day)
                 const open = entry?.enabled
+                const isToday = day === today
                 return (
-                    <li key={day} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                        <span className={open ? 'text-slate-800' : 'text-slate-500'}>{label}</span>
+                    <li
+                        key={day}
+                        className={`flex items-center justify-between px-4 py-2.5 text-sm ${
+                            isToday ? 'bg-indigo-50/60' : ''
+                        }`}
+                    >
+                        <span className="flex items-center gap-2">
+                            <span className={open || isToday ? 'font-medium text-slate-900' : 'text-slate-500'}>
+                                {label}
+                            </span>
+                            {isToday && (
+                                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+                                    Hoje
+                                </span>
+                            )}
+                        </span>
                         <span className={open ? 'font-medium text-slate-900' : 'text-slate-500'}>
                             {open && entry ? `${entry.from} às ${entry.to}` : offLabel}
                         </span>
@@ -43,7 +69,10 @@ export default function SpaceDetail({ id }: { id: number }) {
     const [space, setSpace] = useState<Space | null>(null)
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
+    const [reloadKey, setReloadKey] = useState(0)
     const [active, setActive] = useState(0)
+    const [lightboxOpen, setLightboxOpen] = useState(false)
+    const addToast = useToastStore((s) => s.addToast)
 
     useEffect(() => {
         let cancelled = false
@@ -51,6 +80,7 @@ export default function SpaceDetail({ id }: { id: number }) {
             .get(id)
             .then((data) => {
                 if (!cancelled) {
+                    setError('')
                     setSpace(data)
                     document.title = `${data.name} · Coworking Brasil`
                 }
@@ -71,7 +101,7 @@ export default function SpaceDetail({ id }: { id: number }) {
         return () => {
             cancelled = true
         }
-    }, [id])
+    }, [id, reloadKey])
 
     const applyFavorite = useCallback((_id: number, favorite: boolean) => {
         setSpace((s) => (s ? { ...s, is_favorite: favorite } : s))
@@ -85,34 +115,97 @@ export default function SpaceDetail({ id }: { id: number }) {
 
     const photos = space?.photos ?? []
     const current = photos[active] ?? photos[0]
+    const photoCount = photos.length
+
+    const prevPhoto = useCallback(() => {
+        if (photoCount < 2) return
+        setActive((idx) => (idx - 1 + photoCount) % photoCount)
+    }, [photoCount])
+
+    const nextPhoto = useCallback(() => {
+        if (photoCount < 2) return
+        setActive((idx) => (idx + 1) % photoCount)
+    }, [photoCount])
+
+    // Navegação por teclado dentro do lightbox
+    useEffect(() => {
+        if (!lightboxOpen) return
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setLightboxOpen(false)
+            else if (e.key === 'ArrowLeft') prevPhoto()
+            else if (e.key === 'ArrowRight') nextPhoto()
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+    }, [lightboxOpen, prevPhoto, nextPhoto])
+
+    async function handleShare() {
+        const url = window.location.href
+        if (navigator.share && space) {
+            try {
+                await navigator.share({ title: space.name, url })
+                return
+            } catch {
+                // Usuário cancelou ou navegador recusou -> cai no fallback de copiar
+            }
+        }
+        try {
+            await navigator.clipboard.writeText(url)
+            addToast('Link do espaço copiado!', 'success')
+        } catch {
+            addToast('Não foi possível copiar o link.', 'error')
+        }
+    }
 
     return (
         <ComponentBody>
             <a
                 href={href('home')}
-                className="inline-flex items-center gap-1.5 text-sm text-slate-600 transition hover:text-slate-900"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-indigo-600"
             >
                 <ArrowLeftIcon className="h-4 w-4" />
                 Todos os locais
             </a>
 
             {loading && (
-                <p role="status" aria-live="polite" className="mt-10 text-slate-600">
-                    Carregando...
-                </p>
-            )}
-
-            {error && (
-                <div className="mt-6">
-                    <Alert type="error">{error}</Alert>
+                <div
+                    role="status"
+                    aria-live="polite"
+                    aria-label="Carregando detalhes do espaço"
+                    className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem] animate-pulse"
+                >
+                    <div className="space-y-6">
+                        <div className="h-9 w-2/3 rounded-lg bg-slate-200" />
+                        <div className="h-4 w-1/2 rounded bg-slate-200" />
+                        <div className="aspect-[16/10] w-full rounded-2xl bg-slate-200" />
+                        <div className="h-24 w-full rounded-xl bg-slate-200" />
+                    </div>
+                    <div className="h-96 rounded-2xl bg-slate-200" />
                 </div>
             )}
 
-            {space && (
+            {error && !loading && (
+                <div className="mt-6 space-y-3">
+                    <Alert type="error">{error}</Alert>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setLoading(true)
+                            setError('')
+                            setReloadKey((k) => k + 1)
+                        }}
+                        className={secondaryButton}
+                    >
+                        Tentar novamente
+                    </button>
+                </div>
+            )}
+
+            {space && !loading && (
                 <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_22rem]">
                     <article className="min-w-0 space-y-10">
                         <header>
-                            <div className="flex items-start justify-between gap-4">
+                            <div className="flex flex-wrap items-start justify-between gap-4">
                                 <div className="min-w-0">
                                     <h1 className="font-display text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">
                                         {space.name}
@@ -126,10 +219,10 @@ export default function SpaceDetail({ id }: { id: number }) {
                                                         .getElementById('avaliacoes')
                                                         ?.scrollIntoView({ behavior: 'smooth' })
                                                 }
-                                                className="inline-flex items-center gap-2 text-slate-700 hover:underline"
+                                                className="inline-flex items-center gap-2 text-slate-700 hover:underline cursor-pointer"
                                             >
                                                 <Stars value={space.rating_avg} />
-                                                <span className="font-medium text-slate-900">
+                                                <span className="font-semibold text-slate-900">
                                                     {formatRating(space.rating_avg)}
                                                 </span>
                                                 <span className="text-slate-500">
@@ -141,13 +234,20 @@ export default function SpaceDetail({ id }: { id: number }) {
                                             <span className="text-slate-500">Sem avaliações ainda</span>
                                         )}
                                         {space.is_free && (
-                                            <span className="rounded border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                                            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
                                                 Gratuito
                                             </span>
                                         )}
                                     </p>
                                 </div>
-                                <div className="shrink-0">
+                                <div className="flex shrink-0 items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={handleShare}
+                                        className="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 cursor-pointer"
+                                    >
+                                        Compartilhar
+                                    </button>
                                     <FavoriteButton
                                         variant="full"
                                         active={space.is_favorite}
@@ -162,8 +262,8 @@ export default function SpaceDetail({ id }: { id: number }) {
                                     </Alert>
                                 </div>
                             )}
-                            <p className="mt-2 flex items-start gap-1.5 text-slate-600">
-                                <MapPinIcon className="mt-1 h-4 w-4 shrink-0" />
+                            <p className="mt-3 flex items-start gap-1.5 text-slate-600">
+                                <MapPinIcon className="mt-1 h-4 w-4 shrink-0 text-slate-400" />
                                 <span>
                                     {formatAddress(space)}
                                     {space.complement ? ` · ${space.complement}` : ''}
@@ -172,25 +272,57 @@ export default function SpaceDetail({ id }: { id: number }) {
                             </p>
                             {space.capacity !== null && (
                                 <p className="mt-1 flex items-center gap-1.5 text-slate-600">
-                                    <UserIcon className="h-4 w-4 shrink-0" />
+                                    <UserIcon className="h-4 w-4 shrink-0 text-slate-400" />
                                     Até {space.capacity} {space.capacity === 1 ? 'pessoa' : 'pessoas'}
                                 </p>
                             )}
                         </header>
 
+                        {/* Galeria de fotos com navegação e lightbox */}
                         <div>
-                            <div className="grid aspect-[16/10] place-items-center overflow-hidden rounded-md border border-slate-200 bg-slate-100 text-slate-600">
+                            <div className="group relative grid aspect-[16/10] place-items-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 text-slate-500">
                                 {current ? (
-                                    <img
-                                        src={current.url}
-                                        alt={`${space.name} – foto ${photos.indexOf(current) + 1}`}
-                                        className="h-full w-full object-cover"
-                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setLightboxOpen(true)}
+                                        aria-label="Ampliar foto em tela cheia"
+                                        className="h-full w-full cursor-zoom-in focus:outline-none"
+                                    >
+                                        <img
+                                            src={current.url}
+                                            alt={`${space.name} – foto ${photos.indexOf(current) + 1}`}
+                                            className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.01]"
+                                        />
+                                    </button>
                                 ) : (
                                     <ImageIcon className="h-10 w-10" />
                                 )}
+
+                                {photoCount > 1 && (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={prevPhoto}
+                                            aria-label="Foto anterior"
+                                            className="absolute top-1/2 left-3 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-800 shadow-md transition hover:bg-white cursor-pointer"
+                                        >
+                                            <ChevronLeftIcon className="h-5 w-5" />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={nextPhoto}
+                                            aria-label="Próxima foto"
+                                            className="absolute top-1/2 right-3 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-slate-800 shadow-md transition hover:bg-white cursor-pointer"
+                                        >
+                                            <ChevronRightIcon className="h-5 w-5" />
+                                        </button>
+                                        <span className="pointer-events-none absolute right-3 bottom-3 rounded-full bg-slate-900/75 px-2.5 py-0.5 text-xs font-medium text-white backdrop-blur-xs">
+                                            {active + 1} / {photoCount}
+                                        </span>
+                                    </>
+                                )}
                             </div>
-                            {photos.length > 1 && (
+                            {photoCount > 1 && (
                                 <ul
                                     aria-label="Galeria de fotos do espaço"
                                     className="mt-3 flex gap-2 overflow-x-auto pb-1"
@@ -202,9 +334,9 @@ export default function SpaceDetail({ id }: { id: number }) {
                                                 onClick={() => setActive(index)}
                                                 aria-label={`Ver foto ${index + 1}`}
                                                 aria-current={photo.id === current?.id}
-                                                className={`block h-16 w-24 overflow-hidden rounded border-2 transition ${
+                                                className={`block h-16 w-24 overflow-hidden rounded-lg border-2 transition cursor-pointer ${
                                                     photo.id === current?.id
-                                                        ? 'border-indigo-400'
+                                                        ? 'border-indigo-500 ring-2 ring-indigo-500/20'
                                                         : 'border-transparent opacity-70 hover:opacity-100'
                                                 }`}
                                             >
@@ -224,7 +356,9 @@ export default function SpaceDetail({ id }: { id: number }) {
                         {space.description && (
                             <section>
                                 <h2 className="font-display text-xl font-semibold text-slate-900">Sobre o local</h2>
-                                <p className="mt-3 whitespace-pre-line text-slate-700">{space.description}</p>
+                                <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">
+                                    {space.description}
+                                </p>
                             </section>
                         )}
 
@@ -233,8 +367,11 @@ export default function SpaceDetail({ id }: { id: number }) {
                                 <h2 className="font-display text-xl font-semibold text-slate-900">Comodidades</h2>
                                 <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                                     {space.amenities.map((a) => (
-                                        <li key={a} className="flex items-center gap-2.5 text-slate-700">
-                                            <CheckIcon className="h-5 w-5 shrink-0 text-indigo-600" />
+                                        <li
+                                            key={a}
+                                            className="flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-700"
+                                        >
+                                            <CheckIcon className="h-4 w-4 shrink-0 text-indigo-600" />
                                             {amenityLabel(a)}
                                         </li>
                                     ))}
@@ -269,6 +406,70 @@ export default function SpaceDetail({ id }: { id: number }) {
                     </article>
 
                     <BookingWidget space={space} />
+                </div>
+            )}
+
+            {/* Lightbox de fotos em tela cheia */}
+            {lightboxOpen && current && space && (
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={`Galeria de fotos de ${space.name}`}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 p-4 backdrop-blur-xs"
+                    onPointerDown={(e) => {
+                        if (e.target === e.currentTarget) setLightboxOpen(false)
+                    }}
+                >
+                    <button
+                        type="button"
+                        onClick={() => setLightboxOpen(false)}
+                        aria-label="Fechar galeria"
+                        className="absolute top-4 right-4 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 cursor-pointer"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden="true"
+                            className="h-5 w-5"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+
+                    {photoCount > 1 && (
+                        <button
+                            type="button"
+                            onClick={prevPhoto}
+                            aria-label="Foto anterior"
+                            className="absolute left-4 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 cursor-pointer"
+                        >
+                            <ChevronLeftIcon className="h-6 w-6" />
+                        </button>
+                    )}
+
+                    <figure className="flex max-h-[85vh] max-w-5xl flex-col items-center gap-3">
+                        <img
+                            src={current.url}
+                            alt={`${space.name} – foto ${active + 1}`}
+                            className="max-h-[80vh] w-auto rounded-xl object-contain shadow-2xl"
+                        />
+                        <figcaption className="text-xs font-medium text-slate-300">
+                            {space.name} · Foto {active + 1} de {photoCount}
+                        </figcaption>
+                    </figure>
+
+                    {photoCount > 1 && (
+                        <button
+                            type="button"
+                            onClick={nextPhoto}
+                            aria-label="Próxima foto"
+                            className="absolute right-4 grid h-11 w-11 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 cursor-pointer"
+                        >
+                            <ChevronRightIcon className="h-6 w-6" />
+                        </button>
+                    )}
                 </div>
             )}
         </ComponentBody>
