@@ -8,6 +8,7 @@ use App\Http\Requests\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Space;
+use App\Models\User;
 use App\Services\BookingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
@@ -76,11 +77,7 @@ class BookingController extends Controller
      */
     public function show(Request $request, Booking $booking): BookingResource
     {
-        $user = $this->authenticatedUser($request);
-
-        if (! $user->isAdmin() && $booking->user_id !== $user->id) {
-            abort(403, 'Acesso não autorizado a esta reserva.');
-        }
+        $this->authorizeAccess($booking, $this->authenticatedUser($request));
 
         $booking->load(['space', 'user']);
 
@@ -92,8 +89,11 @@ class BookingController extends Controller
      */
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
+        $user = $this->authenticatedUser($request);
+        $this->authorizeAccess($booking, $user);
+
         $payload = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
-        $updated = $this->bookingService->cancelBooking($booking, $this->authenticatedUser($request), $payload['reason'] ?? null);
+        $updated = $this->bookingService->cancelBooking($booking, $user, $payload['reason'] ?? null);
         $updated->load(['space', 'user']);
 
         return response()->json([
@@ -127,5 +127,10 @@ class BookingController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    private function authorizeAccess(Booking $booking, User $user): void
+    {
+        abort_unless($user->isAdmin() || $booking->user_id === $user->id, 403, 'Acesso não autorizado a esta reserva.');
     }
 }

@@ -266,7 +266,42 @@ class BookingTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token2}")
             ->postJson("/api/bookings/{$booking->id}/cancel");
 
-        $response->assertStatus(422);
+        $response->assertForbidden()
+            ->assertJsonPath('message', 'Acesso não autorizado a esta reserva.');
+
+        $this->withHeader('Authorization', "Bearer {$token2}")
+            ->deleteJson("/api/bookings/{$booking->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('bookings', [
+            'id' => $booking->id,
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+    }
+
+    public function test_admin_can_cancel_another_users_booking(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_CONFIRMED]);
+
+        $this->withToken($admin->createApiToken('test'))
+            ->postJson("/api/bookings/{$booking->id}/cancel")
+            ->assertOk()
+            ->assertJsonPath('booking.status', Booking::STATUS_CANCELLED);
+    }
+
+    public function test_owner_cannot_cancel_a_completed_booking(): void
+    {
+        $owner = User::factory()->create();
+        $booking = Booking::factory()->create([
+            'user_id' => $owner->id,
+            'status' => Booking::STATUS_COMPLETED,
+        ]);
+
+        $this->withToken($owner->createApiToken('test'))
+            ->postJson("/api/bookings/{$booking->id}/cancel")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('booking');
     }
 
     public function test_preview_endpoint_returns_pricing_and_availability(): void
