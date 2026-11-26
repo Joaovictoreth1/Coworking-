@@ -1,0 +1,33 @@
+name: Relatar um problema
+description: Informe um erro reproduzível no Coworking.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Para vulnerabilidades, use o canal privado descrito na [política de segurança](https://github.com/Joaovictoreth1/Coworking-/blob/main/SECURITY.md). Não inclua senhas, tokens nem dados pessoais.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Componente
+      options:
+        - Backend
+        - Frontend web
+        - Aplicativo mobile
+        - Infraestrutura
+        - Documentação
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+      description: Informe a versão ou commit, o ambiente e os passos mínimos.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Resultado esperado e observado
+      description: Anexe logs ou imagens sem dados pessoais, se forem úteis.
+    validations:
+      required: true
