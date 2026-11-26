@@ -89,36 +89,30 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
 
         $data = $request->validate([
-            'ids' => ['required', 'array', 'min:1', 'max:'.Space::MAX_PHOTOS],
-            'ids.*' => ['integer', 'distinct'],
+            'ids' => ['required', 'array', 'list', 'min:1', 'max:'.Space::MAX_PHOTOS],
+            'ids.*' => ['required', 'integer', 'distinct'],
         ], [
             'ids.required' => 'Informe a ordem das fotos.',
             'ids.min' => 'Informe ao menos uma foto para reordenar.',
             'ids.*.distinct' => 'Há fotos repetidas na ordenação.',
         ]);
 
-        $requestedIds = array_values(array_map('intval', $data['ids']));
+        DB::transaction(function () use ($space, $data) {
+            $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
+            $photos = $lockedSpace->photos();
+            $currentIds = (clone $photos)->pluck('id');
+            $requestedIds = array_map('intval', $data['ids']);
 
-        DB::transaction(function () use ($space, $requestedIds) {
-            $existingIds = $space->photos()->lockForUpdate()->pluck('id')->map(fn ($id) => (int) $id)->all();
-            $invalidIds = array_diff($requestedIds, $existingIds);
-
-            if ($invalidIds !== []) {
+            if ($currentIds->count() !== count($requestedIds) || $currentIds->diff($requestedIds)->isNotEmpty()) {
                 throw ValidationException::withMessages([
-                    'ids' => ['Uma ou mais fotos informadas não pertencem a este local.'],
+                    'ids' => ['Informe todas as fotos deste local, uma única vez.'],
                 ]);
             }
 
-            // Mantém eventuais fotos omitidas ordenadas após as informadas para evitar colisão de posição.
-            $remainingIds = array_values(array_diff($existingIds, $requestedIds));
-            $orderedIds = [...$requestedIds, ...$remainingIds];
-
-            foreach ($orderedIds as $position => $id) {
-                SpacePhoto::where('space_id', $space->id)
-                    ->where('id', $id)
-                    ->update(['position' => $position]);
+            foreach ($requestedIds as $position => $id) {
+                (clone $photos)->whereKey($id)->update(['position' => $position]);
             }
-        });
+        }, 3);
 
         return new SpaceResource($space->load('photos'));
     }
@@ -128,18 +122,20 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
         abort_unless($photo->space_id === $space->id, 404);
 
-        $path = $photo->path;
-
-        DB::transaction(function () use ($space, $photo) {
+        $path = DB::transaction(function () use ($space, $photo) {
+            $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
+            $photo = $lockedSpace->photos()->whereKey($photo->id)->firstOrFail();
             $photo->delete();
 
-            $remaining = $space->photos()->lockForUpdate()->pluck('id');
+            $remaining = $lockedSpace->photos()->pluck('id');
             foreach ($remaining as $position => $id) {
                 SpacePhoto::where('space_id', $space->id)
                     ->where('id', $id)
                     ->update(['position' => $position]);
             }
-        });
+
+            return $photo->path;
+        }, 3);
 
         Storage::disk('public')->delete($path);
 

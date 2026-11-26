@@ -4,13 +4,10 @@ import { bookingsApi, type BookingPayload, type BookingPreviewResult } from '../
 import type { AdminMetrics, Booking, Paginated } from '../lib/spaces'
 import { toast } from '../store/useToastStore'
 
-export function useUserBookingsQuery(status?: string) {
-    return useQuery<Booking[]>({
-        queryKey: ['bookings', status ?? 'all'],
-        queryFn: async () => {
-            const res = await bookingsApi.list(status)
-            return res.data
-        },
+export function useUserBookingsQuery(page: number, status?: Booking['status']) {
+    return useQuery({
+        queryKey: ['bookings', status ?? 'all', page],
+        queryFn: () => bookingsApi.list(page, status),
     })
 }
 
@@ -61,16 +58,13 @@ export function useCancelBookingMutation() {
         mutationFn: async ({ bookingId, reason }: { bookingId: number; reason?: string }) => {
             return await bookingsApi.cancel(bookingId, reason)
         },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['bookings'] })
+        onSuccess: async () => {
+            const refreshHistory = queryClient.invalidateQueries({ queryKey: ['bookings'] })
             queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva cancelada com sucesso.')
-        },
-        onError: (err: unknown) => {
-            const message = err instanceof ApiError ? err.message : 'Não foi possível cancelar a reserva.'
-            toast.error(message)
+            await refreshHistory
         },
     })
 }

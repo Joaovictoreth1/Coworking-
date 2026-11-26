@@ -10,7 +10,6 @@ use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminBookingController extends Controller
@@ -56,10 +55,10 @@ class AdminBookingController extends Controller
         }
 
         if (! empty($validated['search'])) {
-            $term = '%' . addcslashes(trim($validated['search']), '%_\\') . '%';
+            $term = '%'.addcslashes(trim($validated['search']), '%_\\').'%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                  ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                    ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 
@@ -83,31 +82,7 @@ class AdminBookingController extends Controller
             'notes.max' => 'As observações não podem exceder 1000 caracteres.',
         ]);
 
-        $newStatus = $validated['status'];
-        $isReactivating = $booking->status === Booking::STATUS_CANCELLED
-            && in_array($newStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true);
-
-        DB::transaction(function () use ($booking, $validated, $newStatus, $isReactivating) {
-            if ($isReactivating) {
-                DB::table('bookings')
-                    ->where('space_id', $booking->space_id)
-                    ->where('status', '!=', Booking::STATUS_CANCELLED)
-                    ->lockForUpdate()
-                    ->get();
-
-                $this->bookingService->validateNoOverlap(
-                    $booking->space,
-                    $booking->start_time,
-                    $booking->end_time,
-                    $booking->id
-                );
-            }
-
-            $booking->update([
-                'status' => $newStatus,
-                'notes' => $validated['notes'] ?? $booking->notes,
-            ]);
-        });
+        $booking = $this->bookingService->updateStatus($booking, $validated['status'], $validated['notes'] ?? null);
 
         $booking->load(['space', 'user']);
 

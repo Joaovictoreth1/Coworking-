@@ -2,9 +2,9 @@ name: Backend
 
 on:
   push:
-    branches: [ "main" ]
+    paths: [ "backend/**", ".github/workflows/laravel.yml" ]
   pull_request:
-    branches: [ "main" ]
+    paths: [ "backend/**", ".github/workflows/laravel.yml" ]
 
 permissions:
   contents: read

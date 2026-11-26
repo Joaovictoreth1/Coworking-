@@ -2,9 +2,10 @@ name: CI — Continuous Integration
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+
+permissions:
+  contents: read
 
 jobs:
   backend-test:
@@ -29,7 +30,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.composer/cache
-          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.json') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.lock') }}
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer Dependencies
@@ -70,6 +71,8 @@ jobs:
       - name: Run Linter (ESLint)
         run: npm run lint
 
+      - name: Run Booking History Tests
+        run: npm test
+
       - name: Run TypeScript & Production Build
         run: npm run build
-

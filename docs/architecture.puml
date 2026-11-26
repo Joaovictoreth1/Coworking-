@@ -1,0 +1,30 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+!pragma layout smetana
+
+LAYOUT_LEFT_RIGHT()
+title Coworking - arquitetura de produção
+
+Person(customer, "Cliente", "Pesquisa espaços, faz reservas e publica avaliações")
+Person(manager, "Administrador", "Gerencia espaços e acompanha reservas")
+
+System_Boundary(coworking, "Plataforma Coworking") {
+    Container(web, "Aplicação web", "React, TypeScript, Caddy", "SPA e proxy HTTPS para a API")
+    Container(mobile, "Aplicativo móvel", "Flutter, Dart", "Catálogo, favoritos, avaliações e gestão de espaços")
+    Container(api, "API", "Laravel, FrankenPHP", "Autenticação, autorização, disponibilidade e reservas")
+    ContainerDb(db, "Banco relacional", "MySQL 8", "Usuários, espaços, reservas, avaliações e tokens")
+    ContainerDb(cache, "Cache", "Redis", "Cache e limitação de requisições")
+    ContainerDb(uploads, "Arquivos", "Volume Docker", "Fotos de espaços")
+}
+
+Rel(customer, web, "Usa", "HTTPS")
+Rel(customer, mobile, "Usa")
+Rel(manager, web, "Usa", "HTTPS")
+Rel(manager, mobile, "Usa")
+Rel(mobile, web, "Acessa a API pelo proxy", "HTTPS / JSON")
+Rel(web, api, "Encaminha /api", "HTTP interno / JSON")
+Rel(api, db, "Lê e persiste dados", "SQL")
+Rel(api, cache, "Lê e grava", "RESP")
+Rel(api, uploads, "Lê e grava fotos")
+@enduml

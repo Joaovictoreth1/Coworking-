@@ -1,17 +1,24 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useRef, useState } from 'react'
+import BookingHistoryCard from '../components/BookingHistoryCard'
+import BookingVoucherDialog from '../components/BookingVoucherDialog'
+import CancelBookingDialog from '../components/CancelBookingDialog'
 import ComponentBody from '../components/ComponentBody'
-import { SearchIcon } from '../components/icons'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
 import { ApiError } from '../lib/api'
+import { bookingPageRange, searchBookingPage } from '../lib/bookingHistory'
 import { href } from '../lib/route'
-import { formatBRL, type Booking } from '../lib/spaces'
+import type { Booking } from '../lib/spaces'
 import { inputClass, primaryButton, secondaryButton } from '../lib/ui'
-import { useToastStore } from '../store/useToastStore'
+import './bookingHistory.css'
 
-type StatusFilter = '' | 'confirmed' | 'pending' | 'completed' | 'cancelled'
+type Status = Booking['status'] | ''
+type OpenDialog = {
+    kind: 'voucher' | 'cancel'
+    booking: Booking
+}
 
-const TABS: { label: string; value: StatusFilter }[] = [
+const FILTERS: { label: string; value: Status }[] = [
     { label: 'Todas', value: '' },
     { label: 'Confirmadas', value: 'confirmed' },
     { label: 'Pendentes', value: 'pending' },
@@ -19,528 +26,229 @@ const TABS: { label: string; value: StatusFilter }[] = [
     { label: 'Canceladas', value: 'cancelled' },
 ]
 
-const CANCEL_REASONS = [
-    'Mudança de planos ou data',
-    'Encontrei outro horário ou local',
-    'Imprevisto profissional ou pessoal',
-    'Erro no agendamento do horário',
-    'Outro motivo',
-]
-
-function getStatusBadge(status: Booking['status']) {
-    switch (status) {
-        case 'confirmed':
-            return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Confirmada
-                </span>
-            )
-        case 'pending':
-            return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Pendente
-                </span>
-            )
-        case 'cancelled':
-            return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                    Cancelada
-                </span>
-            )
-        case 'completed':
-            return (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                    Concluída
-                </span>
-            )
-    }
-}
-
-function formatDate(iso: string) {
-    const d = new Date(iso)
-    return d.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    })
-}
-
-function formatTime(iso: string) {
-    const d = new Date(iso)
-    return d.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-}
-
 export default function MyBookings() {
-    const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
-    const [searchQuery, setSearchQuery] = useState('')
-    const [cancellingId, setCancellingId] = useState<number | null>(null)
-    const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
-    const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
-    const [copiedCode, setCopiedCode] = useState<string | null>(null)
-    const addToast = useToastStore((s) => s.addToast)
+    const [status, setStatus] = useState<Status>('')
+    const [page, setPage] = useState(1)
+    const [search, setSearch] = useState('')
+    const [dialog, setDialog] = useState<OpenDialog | null>(null)
+    const resultsHeading = useRef<HTMLHeadingElement>(null)
+    const searchInput = useRef<HTMLInputElement>(null)
+    const history = useUserBookingsQuery(page, status || undefined)
+    const cancellation = useCancelBookingMutation()
 
-    const {
-        data: bookings,
-        isLoading,
-        error,
-        refetch,
-        isFetching,
-    } = useUserBookingsQuery(selectedTab || undefined)
-    const cancelMutation = useCancelBookingMutation()
+    const items = history.data?.data ?? []
+    const metadata = history.data?.meta
+    const range = metadata ? bookingPageRange(metadata, items.length) : null
+    const matches = searchBookingPage(items, search)
+    const searching = search.trim().length > 0
+    const beyondLastPage = Boolean(metadata && page > metadata.last_page)
+    const announcement = history.isPending
+        ? 'Carregando reservas…'
+        : !history.data
+            ? ''
+            : searching
+                ? `${matches.length} de ${items.length} reservas nesta página correspondem à busca.`
+                : range
+                    ? `Reservas ${range.first}–${range.last} de ${metadata?.total}.`
+                    : 'Nenhuma reserva nesta página.'
 
-    // Fecha modais abertos ao pressionar Escape
-    useEffect(() => {
-        if (!selectedVoucher && cancellingId === null) return
-        const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Escape') return
-            if (selectedVoucher) setSelectedVoucher(null)
-            else if (cancellingId !== null && !cancelMutation.isPending) setCancellingId(null)
-        }
-        document.addEventListener('keydown', onKeyDown)
-        return () => document.removeEventListener('keydown', onKeyDown)
-    }, [selectedVoucher, cancellingId, cancelMutation.isPending])
-
-    const filteredBookings = useMemo(() => {
-        if (!bookings) return []
-        const term = searchQuery.trim().toLowerCase()
-        if (!term) return bookings
-        return bookings.filter((b) => {
-            const spaceName = (b.space?.name || b.space_name || '').toLowerCase()
-            const city = (b.space?.city || '').toLowerCase()
-            const voucher = (b.voucher_code || '').toLowerCase()
-            return spaceName.includes(term) || city.includes(term) || voucher.includes(term)
-        })
-    }, [bookings, searchQuery])
-
-    async function handleCopyVoucher(code: string) {
-        try {
-            await navigator.clipboard.writeText(code)
-            setCopiedCode(code)
-            addToast(`Código ${code} copiado.`, 'success')
-            window.setTimeout(() => {
-                setCopiedCode((current) => (current === code ? null : current))
-            }, 2000)
-        } catch {
-            addToast('Não foi possível copiar o código.', 'error')
-        }
+    function goToPage(nextPage: number) {
+        resultsHeading.current?.focus()
+        setPage(nextPage)
     }
 
-    async function handleConfirmCancel(bookingId: number) {
-        try {
-            await cancelMutation.mutateAsync({ bookingId, reason: cancelReason })
-            setCancellingId(null)
-        } catch {
-            // Tratado no onError do hook
-        }
+    function clearSearch() {
+        setSearch('')
+        searchInput.current?.focus()
+    }
+
+    function openCancel(booking: Booking) {
+        cancellation.reset()
+        setDialog({ kind: 'cancel', booking })
     }
 
     return (
         <ComponentBody>
-            <div className="max-w-4xl mx-auto py-4">
-                {/* Cabeçalho da Página */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-200">
+            <div className="mx-auto max-w-4xl space-y-6 py-4">
+                <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-6">
                     <div>
-                        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">
-                            Minhas Reservas
-                        </h1>
-                        <p className="text-sm text-slate-500 mt-1">
-                            Acompanhe seu histórico, horários agendados e comprovantes digitais.
+                        <h1 className="text-3xl font-extrabold tracking-tight text-slate-900">Minhas reservas</h1>
+                        <p className="mt-1 text-sm text-slate-600">
+                            Acompanhe seus horários, cancelamentos e comprovantes.
                         </p>
                     </div>
-                    <a href={href('home')} className={secondaryButton}>
-                        Explorar Mais Espaços
-                    </a>
-                </div>
+                    <a href={href('home')} className={secondaryButton}>Explorar espaços</a>
+                </header>
 
-                {/* Abas de Filtro e Busca */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-5 border-b border-slate-100">
-                    <div
-                        role="group"
-                        aria-label="Filtrar reservas por status"
-                        className="flex gap-2 overflow-x-auto no-scrollbar"
-                    >
-                        {TABS.map((tab) => {
-                            const active = selectedTab === tab.value
-                            return (
+                <div className="space-y-4">
+                    <fieldset className="space-y-2">
+                        <legend className="text-sm font-semibold">Status das reservas</legend>
+                        <div className="flex flex-wrap gap-2">
+                            {FILTERS.map(({ label, value }) => (
                                 <button
-                                    key={tab.value}
+                                    key={value}
                                     type="button"
-                                    aria-pressed={active}
-                                    onClick={() => setSelectedTab(tab.value)}
-                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer whitespace-nowrap ${
-                                        active
-                                            ? 'bg-slate-900 text-white shadow-sm'
-                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                    }`}
+                                    aria-pressed={status === value}
+                                    onClick={() => {
+                                        if (status === value) return
+                                        setStatus(value)
+                                        setPage(1)
+                                    }}
+                                    className={`min-h-11 rounded-xl px-4 text-sm font-medium ${status === value
+                                        ? 'bg-slate-900 text-white'
+                                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                                 >
-                                    {tab.label}
+                                    {label}
                                 </button>
-                            )
-                        })}
-                    </div>
-
-                    <div className="relative sm:w-64 shrink-0">
-                        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            ))}
+                        </div>
+                    </fieldset>
+                    <div className="max-w-md space-y-2">
+                        <label htmlFor="booking-search" className="block text-sm font-semibold">
+                            Buscar nesta página
+                        </label>
                         <input
+                            id="booking-search"
+                            ref={searchInput}
                             type="search"
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Buscar espaço ou voucher..."
-                            aria-label="Buscar reservas por espaço, cidade ou voucher"
-                            className={`h-10 pl-9 text-sm ${inputClass(false)}`}
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            autoComplete="off"
+                            placeholder="Espaço, cidade ou código"
+                            aria-describedby="booking-search-help"
+                            className={inputClass(false, 'min-h-11')}
                         />
+                        <p id="booking-search-help" className="text-xs text-slate-600">
+                            A busca filtra só as reservas da página exibida.
+                        </p>
                     </div>
                 </div>
 
-                {/* Conteúdo Principal */}
-                <div className="mt-6 space-y-4">
-                    {isLoading ? (
-                        <>
-                            <BookingCardSkeleton />
-                            <BookingCardSkeleton />
-                            <BookingCardSkeleton />
-                        </>
-                    ) : error ? (
-                        <div
-                            role="alert"
-                            className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3"
-                        >
-                            <p className="text-rose-700 font-semibold">
-                                Não foi possível carregar suas reservas.
+                <section
+                    className="space-y-4"
+                    aria-labelledby="booking-results-title"
+                    aria-busy={history.isPending && history.isFetching}
+                >
+                    <div>
+                        <h2 id="booking-results-title" ref={resultsHeading} tabIndex={-1} className="text-lg font-bold">
+                            Histórico de reservas
+                        </h2>
+                        <p role="status" className="min-h-5 text-sm text-slate-600">{announcement}</p>
+                    </div>
+
+                    {history.isError && (
+                        <div role="alert" className="space-y-3 rounded-xl border border-rose-200 bg-rose-50 p-4">
+                            <p className="font-semibold text-rose-800">
+                                {history.data ? 'Não foi possível atualizar o histórico.' : 'Não foi possível carregar suas reservas.'}
                             </p>
-                            <p className="text-xs text-rose-600">
-                                {error instanceof ApiError ? error.message : 'Tente novamente mais tarde.'}
+                            <p className="text-sm text-rose-800">
+                                {history.data ? 'Os dados exibidos podem estar desatualizados.'
+                                    : history.error instanceof ApiError ? history.error.message
+                                        : 'Verifique a conexão e tente novamente.'}
                             </p>
                             <button
                                 type="button"
-                                onClick={() => refetch()}
-                                disabled={isFetching}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
+                                onClick={() => void history.refetch()}
+                                disabled={history.isFetching}
+                                className={secondaryButton}
                             >
-                                {isFetching ? 'Recarregando...' : 'Tentar novamente'}
+                                {history.isFetching ? 'Recarregando…' : 'Tentar novamente'}
                             </button>
+                            {!history.data && page !== 1 && (
+                                <button type="button" className={secondaryButton} onClick={() => goToPage(1)}>
+                                    Voltar à primeira página
+                                </button>
+                            )}
                         </div>
-                    ) : filteredBookings.length === 0 ? (
-                        <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm">
-                            <div
-                                aria-hidden="true"
-                                className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-2xl mb-4"
-                            >
-                                📅
-                            </div>
-                            <h2 className="text-xl font-bold text-slate-900">
-                                {selectedTab || searchQuery.trim()
-                                    ? 'Nenhuma reserva encontrada com este filtro.'
-                                    : 'Você ainda não possui nenhuma reserva.'}
-                            </h2>
-                            <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-                                {searchQuery.trim()
-                                    ? 'Tente outro termo ou limpe a busca para ver suas reservas.'
-                                    : 'Encontre salas privativas, estações de coworking ou auditórios ideais para o seu trabalho.'}
-                            </p>
-                            {searchQuery.trim() ? (
-                                <button
-                                    type="button"
-                                    onClick={() => setSearchQuery('')}
-                                    className={`${secondaryButton} mt-6`}
-                                >
+                    )}
+
+                    {history.isPending && (
+                        <div aria-hidden="true" className="space-y-3">
+                            <BookingCardSkeleton />
+                            <BookingCardSkeleton />
+                        </div>
+                    )}
+
+                    {history.data && (matches.length ? (
+                        <ul className="space-y-3">
+                            {matches.map((booking) => (
+                                <li key={booking.id}>
+                                    <BookingHistoryCard
+                                        booking={booking}
+                                        onVoucher={() => setDialog({ kind: 'voucher', booking })}
+                                        onCancel={() => openCancel(booking)}
+                                    />
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-6">
+                            <h3 className="font-semibold">
+                                {beyondLastPage ? 'Esta página não está mais disponível.'
+                                    : searching ? 'Nenhum resultado nesta página.'
+                                        : status ? 'Nenhuma reserva com este status.' : 'Você ainda não tem reservas.'}
+                            </h3>
+                            {beyondLastPage ? (
+                                <button type="button" className={secondaryButton} onClick={() => goToPage(1)}>
+                                    Voltar à primeira página
+                                </button>
+                            ) : searching ? (
+                                <button type="button" className={secondaryButton} onClick={clearSearch}>
                                     Limpar busca
                                 </button>
+                            ) : status ? (
+                                <button type="button" className={secondaryButton} onClick={() => {
+                                    setStatus('')
+                                    goToPage(1)
+                                }}>
+                                    Mostrar todos os status
+                                </button>
                             ) : (
-                                <a href={href('home')} className={`${primaryButton} mt-6 inline-block`}>
-                                    Ver Espaços Disponíveis
-                                </a>
+                                <a href={href('home')} className={primaryButton}>Ver espaços disponíveis</a>
                             )}
                         </div>
-                    ) : (
-                        filteredBookings.map((booking) => (
-                            <article
-                                key={booking.id}
-                                className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col md:flex-row md:items-center justify-between gap-6"
+                    ))}
+
+                    {metadata && metadata.last_page > 1 && !beyondLastPage && (
+                        <nav aria-label="Páginas do histórico" className="flex flex-wrap items-center justify-between gap-2">
+                            <button
+                                type="button"
+                                disabled={page <= 1}
+                                className={secondaryButton}
+                                onClick={() => goToPage(page - 1)}
                             >
-                                <div className="space-y-3 flex-1">
-                                    <div className="flex flex-wrap items-center gap-3">
-                                        <h2 className="text-lg font-bold text-slate-900 hover:text-indigo-600 transition">
-                                            {booking.space ? (
-                                                <a href={href('space', { id: booking.space.id })}>
-                                                    {booking.space.name}
-                                                </a>
-                                            ) : (
-                                                booking.space_name || 'Espaço de Coworking'
-                                            )}
-                                        </h2>
-                                        {getStatusBadge(booking.status)}
-                                        {booking.voucher_code && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleCopyVoucher(booking.voucher_code!)}
-                                                title="Copiar código do voucher"
-                                                className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition cursor-pointer"
-                                            >
-                                                {copiedCode === booking.voucher_code
-                                                    ? 'Copiado!'
-                                                    : booking.voucher_code}
-                                            </button>
-                                        )}
-                                    </div>
-
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-slate-800">Data:</span>
-                                            <span>{formatDate(booking.start_time)}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-semibold text-slate-800">Horário:</span>
-                                            <span>
-                                                {formatTime(booking.start_time)} às {formatTime(booking.end_time)} (
-                                                {booking.duration_hours}h)
-                                            </span>
-                                        </div>
-                                        {booking.space && (
-                                            <div className="flex items-center gap-2 col-span-full">
-                                                <span className="font-semibold text-slate-800">Localização:</span>
-                                                <span>
-                                                    {booking.space.city} - {booking.space.state}
-                                                </span>
-                                            </div>
-                                        )}
-                                        {booking.notes && (
-                                            <div className="flex items-start gap-2 col-span-full italic text-slate-500">
-                                                <span className="font-semibold text-slate-700 not-italic">
-                                                    Nota:
-                                                </span>
-                                                <span>{booking.notes}</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100 gap-3">
-                                    <div className="text-right">
-                                        <span className="block text-xs text-slate-500">Valor Total</span>
-                                        <span className="text-xl font-bold text-slate-900">
-                                            {booking.total_price === 0
-                                                ? 'Gratuito'
-                                                : formatBRL(booking.total_price)}
-                                        </span>
-                                    </div>
-
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setSelectedVoucher(booking)}
-                                            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer flex items-center gap-1.5"
-                                        >
-                                            <span aria-hidden="true">📄</span> Comprovante
-                                        </button>
-
-                                        {booking.can_cancel && (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setCancellingId(booking.id)
-                                                    setCancelReason(CANCEL_REASONS[0])
-                                                }}
-                                                className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 transition cursor-pointer"
-                                            >
-                                                Cancelar
-                                            </button>
-                                        )}
-                                    </div>
-                                </div>
-                            </article>
-                        ))
+                                Anterior
+                            </button>
+                            <span className="text-sm text-slate-700">
+                                Página {metadata.current_page} de {metadata.last_page}
+                            </span>
+                            <button
+                                type="button"
+                                disabled={page >= metadata.last_page}
+                                className={secondaryButton}
+                                onClick={() => goToPage(page + 1)}
+                            >
+                                Próxima
+                            </button>
+                        </nav>
                     )}
-                </div>
+                </section>
             </div>
 
-            {/* Modal de Comprovante de Reserva */}
-            {selectedVoucher && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fadeIn"
-                    onPointerDown={(e) => {
-                        if (e.target === e.currentTarget) setSelectedVoucher(null)
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="voucher-modal-title"
-                        className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6"
-                    >
-                        {/* Header do Comprovante */}
-                        <div className="flex items-start justify-between border-b border-slate-100 pb-4">
-                            <div>
-                                <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
-                                    Comprovante de Reserva
-                                </span>
-                                <h2 id="voucher-modal-title" className="text-xl font-extrabold text-slate-900 mt-0.5">
-                                    {selectedVoucher.space?.name || selectedVoucher.space_name || 'Espaço de Coworking'}
-                                </h2>
-                                <div className="mt-1 flex items-center gap-2">
-                                    <span className="font-mono text-xs text-slate-500">
-                                        Código: {selectedVoucher.voucher_code || `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`}
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            handleCopyVoucher(
-                                                selectedVoucher.voucher_code ||
-                                                    `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`,
-                                            )
-                                        }
-                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
-                                    >
-                                        {copiedCode ===
-                                        (selectedVoucher.voucher_code ||
-                                            `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`)
-                                            ? 'Copiado!'
-                                            : 'Copiar'}
-                                    </button>
-                                </div>
-                            </div>
-                            <div>{getStatusBadge(selectedVoucher.status)}</div>
-                        </div>
-
-                        {/* Dados Detalhados */}
-                        <div className="space-y-3 text-sm bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-medium">Data Agendada:</span>
-                                <span className="font-bold text-slate-800">{formatDate(selectedVoucher.start_time)}</span>
-                            </div>
-                            <div className="flex justify-between items-center text-xs">
-                                <span className="text-slate-500 font-medium">Horário / Período:</span>
-                                <span className="font-bold text-slate-800">
-                                    {formatTime(selectedVoucher.start_time)} às {formatTime(selectedVoucher.end_time)} ({selectedVoucher.duration_hours}h)
-                                </span>
-                            </div>
-                            {selectedVoucher.space && (
-                                <div className="flex justify-between items-center text-xs">
-                                    <span className="text-slate-500 font-medium">Cidade / Estado:</span>
-                                    <span className="font-semibold text-slate-700">
-                                        {selectedVoucher.space.city} - {selectedVoucher.space.state}
-                                    </span>
-                                </div>
-                            )}
-                            <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-200/60">
-                                <span className="text-slate-600 font-bold">Valor Total Pago/Previsto:</span>
-                                <span className="text-base font-extrabold text-slate-900">
-                                    {selectedVoucher.total_price === 0
-                                        ? 'Gratuito'
-                                        : formatBRL(selectedVoucher.total_price)}
-                                </span>
-                            </div>
-                        </div>
-
-                        {/* QR Code / Validação de Check-in */}
-                        <div className="flex flex-col items-center justify-center p-4 bg-white rounded-2xl border border-dashed border-slate-200 text-center space-y-2">
-                            <div className="w-24 h-24 bg-slate-900 text-white rounded-xl flex items-center justify-center text-xs font-mono p-2 select-none shadow-sm">
-                                [ QR CHECK-IN ]
-                            </div>
-                            <p className="text-xs text-slate-500">
-                                Apresente este código na recepção ao chegar para liberar o seu acesso.
-                            </p>
-                        </div>
-
-                        {/* Ações do Modal */}
-                        <div className="flex items-center justify-end gap-3 pt-2">
-                            <button
-                                type="button"
-                                onClick={() => setSelectedVoucher(null)}
-                                className={secondaryButton}
-                            >
-                                Fechar
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => window.print()}
-                                className={primaryButton}
-                            >
-                                <span aria-hidden="true">🖨️</span> Imprimir / Salvar PDF
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {dialog?.kind === 'voucher' && (
+                <BookingVoucherDialog booking={dialog.booking} onDismiss={() => setDialog(null)} />
             )}
-
-            {/* Modal de Confirmação de Cancelamento com Motivo */}
-            {cancellingId !== null && (
-                <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fadeIn"
-                    onPointerDown={(e) => {
-                        if (e.target === e.currentTarget && !cancelMutation.isPending) {
-                            setCancellingId(null)
-                        }
-                    }}
-                >
-                    <div
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="cancel-booking-modal-title"
-                        className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4"
-                    >
-                        <div
-                            aria-hidden="true"
-                            className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xl"
-                        >
-                            ⚠️
-                        </div>
-                        <div>
-                            <h2 id="cancel-booking-modal-title" className="text-lg font-bold text-slate-900">
-                                Cancelar Reserva?
-                            </h2>
-                            <p className="text-sm text-slate-500 mt-1">
-                                O horário selecionado será liberado para outros usuários. Esta ação não
-                                pode ser desfeita.
-                            </p>
-                        </div>
-
-                        {/* Motivo do Cancelamento */}
-                        <div className="space-y-2 pt-2">
-                            <label htmlFor="cancel-reason" className="block text-xs font-bold text-slate-700">
-                                Selecione o motivo do cancelamento:
-                            </label>
-                            <select
-                                id="cancel-reason"
-                                value={cancelReason}
-                                onChange={(e) => setCancelReason(e.target.value)}
-                                className="w-full text-xs rounded-xl border border-slate-200 p-2.5 bg-slate-50 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                            >
-                                {CANCEL_REASONS.map((reason) => (
-                                    <option key={reason} value={reason}>
-                                        {reason}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div className="flex justify-end gap-2 pt-3">
-                            <button
-                                type="button"
-                                onClick={() => setCancellingId(null)}
-                                className={secondaryButton}
-                                disabled={cancelMutation.isPending}
-                            >
-                                Manter Reserva
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleConfirmCancel(cancellingId)}
-                                disabled={cancelMutation.isPending}
-                                className="px-4 py-2 rounded-xl text-sm font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
-                            >
-                                {cancelMutation.isPending ? 'Cancelando...' : 'Confirmar Cancelamento'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+            {dialog?.kind === 'cancel' && (
+                <CancelBookingDialog
+                    booking={dialog.booking}
+                    busy={cancellation.isPending}
+                    error={cancellation.error}
+                    onDismiss={() => setDialog(null)}
+                    onConfirm={(bookingId, reason) => cancellation.mutate(
+                        { bookingId, reason },
+                        { onSuccess: () => setDialog(null) },
+                    )}
+                />
             )}
         </ComponentBody>
     )

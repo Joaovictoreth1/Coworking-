@@ -127,6 +127,48 @@ class AdminSpaceTest extends TestCase
         ]);
     }
 
+    public function test_customer_cannot_read_system_bookings_or_metrics(): void
+    {
+        $customer = User::factory()->create();
+
+        $this->withToken($customer->createApiToken('customer-test'));
+
+        $this->getJson('/api/admin/bookings')->assertForbidden();
+        $this->getJson('/api/admin/metrics')->assertForbidden();
+        $this->getJson('/api/admin/dashboard')->assertForbidden();
+    }
+
+    public function test_admin_cannot_reactivate_a_booking_with_an_overlapping_replacement(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_CANCELLED]);
+        Booking::factory()->create([
+            'space_id' => $booking->space_id,
+            'start_time' => $booking->start_time,
+            'end_time' => $booking->end_time,
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+
+        $this->withToken($admin->createApiToken('admin-test'))
+            ->patchJson("/api/admin/bookings/{$booking->id}/status", ['status' => Booking::STATUS_CONFIRMED])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('booking_conflict');
+
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => Booking::STATUS_CANCELLED]);
+    }
+
+    public function test_customer_cannot_update_another_users_booking_status(): void
+    {
+        $customer = User::factory()->create();
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_PENDING]);
+
+        $this->withToken($customer->createApiToken('customer-test'))
+            ->patchJson("/api/admin/bookings/{$booking->id}/status", ['status' => Booking::STATUS_CANCELLED])
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => Booking::STATUS_PENDING]);
+    }
+
     public function test_regular_user_cannot_access_admin_bookings_or_metrics(): void
     {
         $user = User::factory()->create(['role' => User::ROLE_USER]);

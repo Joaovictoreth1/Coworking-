@@ -1,12 +1,20 @@
 name: Docker (produção)
 
 on:
-  pull_request:
-    branches: [ "main" ]
+  push:
     paths:
       - "backend/**"
       - "frontend/**"
-      - "docker-compose.prod.yml"
+      - "docker-compose*.yml"
+      - ".env*.example"
+      - ".github/workflows/docker.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "frontend/**"
+      - "docker-compose*.yml"
+      - ".env*.example"
+      - ".github/workflows/docker.yml"
 
 permissions:
   contents: read
@@ -16,11 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Valida o compose de produção
+      - name: Valida os arquivos Compose
         run: |
           cp .env.production.example .env.production
+          export DB_PASSWORD="$(openssl rand -hex 24)" DB_ROOT_PASSWORD="$(openssl rand -hex 24)"
+          docker compose config -q
           docker compose --env-file .env.production -f docker-compose.prod.yml config -q
       - name: Build das imagens
         run: |
-          cp .env.production.example .env.production
+          export DB_PASSWORD="$(openssl rand -hex 24)" DB_ROOT_PASSWORD="$(openssl rand -hex 24)"
           docker compose --env-file .env.production -f docker-compose.prod.yml build

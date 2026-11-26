@@ -15,6 +15,13 @@ A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 1
 
 ## 📐 Arquitetura do Sistema
 
+![Diagrama C4 da plataforma Coworking](docs/architecture.png)
+
+Em produção, Caddy serve o frontend e encaminha a API. O Laravel usa MySQL para dados, Redis para cache e um volume persistente para fotos. O aplicativo Flutter usa a mesma API.
+
+<details>
+<summary>Visão simplificada do fluxo web</summary>
+
 ```
                   ┌────────────────────────────────────────┐
                   │          React 19 + TypeScript         │
@@ -39,6 +46,7 @@ A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 1
         │   (Docker Prod/Dev) │               │   (Testes Rápidos)  │
         └─────────────────────┘               └─────────────────────┘
 ```
+</details>
 
 ---
 
@@ -46,7 +54,7 @@ A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 1
 
 1. **Blindagem contra Double-Booking (Conflito de Horário):**
    - O `BookingService` executa validação matemática de sobreposição: uma reserva sobrepõe outra se `[start_time < new_end]` e `[end_time > new_start]`.
-   - Utiliza **Lock Pessimista (`lockForUpdate`)** e transações no banco de dados para eliminar qualquer risco de *Race Condition* sob concorrência simultânea.
+   - No MySQL, a criação e a reativação de bookings serializam as escritas do mesmo espaço com `lockForUpdate` sobre a linha do espaço.
    - Tentativas de sobreposição retornam status **`422 Unprocessable Entity`** com mensagem clara de erro.
 2. **Cálculo Automático de Tarifação:**
    - Calcula a duração em horas (`ceil(diffInMinutes / 60)`).
@@ -59,27 +67,23 @@ A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 1
 
 ---
 
-## 🔑 Credenciais de Teste (Populadas via Seeder)
+## 🔑 Dados de demonstração
 
-O banco de dados já conta com seeders realistas contendo dezenas de espaços, fotos, comodidades, avaliações e reservas pré-configuradas:
-
-| Perfil | E-mail | Senha | Papel |
-|---|---|---|---|
-| **Administrador** | `admin@teste.com` | `12345678` | Administrador geral do sistema |
-| **Cliente 1** | `ana@teste.com` | `12345678` | Usuário comum / Locatário |
-| **Cliente 2** | `bruno@teste.com` | `12345678` | Usuário comum / Locatário |
-| **Cliente 3** | `carla@teste.com` | `12345678` | Usuário comum / Locatário |
+Somente para bancos locais descartáveis: defina `COWORKING_DEMO_PASSWORD` com 16 a 72 bytes no `backend/.env` e execute `php artisan db:seed` (ou `docker compose exec backend php artisan db:seed`). O seeder cria, entre outras, as contas `admin@teste.com` e `ana@teste.com`. Executá-lo novamente redefine as senhas dessas contas. Ele não roda automaticamente e é bloqueado fora dos ambientes `local` e `testing`.
 
 ---
 
 ## 🚀 Como Executar o Projeto Localmente
 
+Pré-requisitos: Docker com Compose v2, ou PHP 8.4.1+ com Composer 2 e Node.js 22.13+ para execução nativa. Para o aplicativo móvel, use Flutter stable com Dart 3.12.2+.
+
 ### Opção 1: Via Docker Compose (Recomendado)
 
-Todo o ecossistema (Backend, Frontend, MySQL e PhpMyAdmin) sobe com um único comando:
+O backend, frontend e MySQL sobem juntos. Copie o exemplo e preencha senhas locais distintas antes de iniciar:
 
 ```bash
 # Na raiz do projeto:
+cp .env.example .env
 docker compose up -d
 ```
 
@@ -87,8 +91,10 @@ docker compose up -d
 |---|---|---|
 | **Frontend Web** | [http://localhost:5173](http://localhost:5173) | Interface React com Hot Reload |
 | **Backend API** | [http://localhost:8000](http://localhost:8000) | Servidor Laravel 13 |
-| **PhpMyAdmin** | [http://localhost:8081](http://localhost:8081) | Gerenciador do banco MySQL |
-| **MySQL Database** | `localhost:3306` | Banco de dados relacional |
+| **PhpMyAdmin** | [http://localhost:8081](http://localhost:8081) | Opcional: `docker compose --profile tools up -d` |
+| **MySQL** | `db:3306` | Somente na rede do Compose |
+
+O Compose agora conecta o Laravel ao MySQL. Se o ambiente anterior usava SQLite, guarde `backend/database/database.sqlite`; as migrations criam o esquema MySQL, mas não copiam dados. Para um volume MySQL existente, crie o usuário de aplicação e ajuste acessos antes de subir: trocar as variáveis não altera usuários já provisionados.
 
 ---
 
@@ -100,8 +106,8 @@ cd backend
 composer install
 cp .env.example .env
 php artisan key:generate
-php artisan migrate --force
-php artisan db:seed --force
+touch database/database.sqlite
+php artisan migrate
 php artisan storage:link
 php artisan serve --port=8000
 ```
@@ -109,9 +115,36 @@ php artisan serve --port=8000
 #### 2. Frontend (React + Vite)
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
+
+#### 3. Mobile (Flutter)
+
+```bash
+cd mobile
+flutter pub get
+flutter run --dart-define=API_URL=http://10.0.2.2:8000/api
+```
+
+Esse endereço é para o emulador Android. Para o simulador iOS, use `http://127.0.0.1:8000/api`. Para dispositivos físicos, prefira uma API HTTPS alcançável. O Compose local publica a API apenas em loopback.
+
+### Variáveis de ambiente
+
+| Variável | Local | Uso |
+|---|---|---|
+| `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`, `DB_ROOT_PASSWORD` | `.env` da raiz (Compose local) ou `.env.production` | Banco MySQL, conta da aplicação e senhas obrigatórias; a conta root é usada só na inicialização do MySQL. |
+| `APP_ENV`, `APP_KEY`, `APP_URL`, `APP_DEBUG` | `backend/.env` nativo ou `.env.production` | Gere a chave uma única vez por ambiente. Em produção: `APP_ENV=production`, `APP_DEBUG=false` e URL pública HTTPS. |
+| `DB_CONNECTION`, `DB_HOST`, `DB_PORT` | Backend | SQLite na execução local nativa; os arquivos Compose definem a conexão MySQL. |
+| `CORS_ALLOWED_ORIGINS` | Backend | Lista de origens web separadas por vírgula. Sem configuração, nenhuma origem externa é autorizada. |
+| `TRUSTED_PROXIES` | Backend | IPs/CIDRs de proxies confiáveis; use `*` somente se a API não for acessível diretamente. |
+| `COWORKING_TIMEZONE` | Backend | Fuso dos horários de funcionamento, padrão `America/Sao_Paulo`. |
+| `COWORKING_DEMO_PASSWORD` | `backend/.env` local | Opcional; habilita a população explícita de dados de demonstração. |
+| `VITE_API_URL` | `frontend/.env` ou build | Padrão local `http://localhost:8000/api`; imagem de produção usa `/api`. |
+| `API_URL` | Flutter `--dart-define` | URL da API em tempo de build. Use HTTPS em produção. |
+| `SITE_ADDRESS`, `HTTP_PORT`, `HTTPS_PORT`, `CACHE_STORE`, `REDIS_CLIENT` | `.env.production` | Domínio e portas do Caddy e cache Redis. |
+
+Em produção, siga [DEPLOY.md](DEPLOY.md) para configurar HTTPS, criar o administrador e fazer backup antes de atualizar. O container da API executa migrations no início por padrão; este branch não adiciona uma migration. Se dados de demonstração já foram usados em um ambiente compartilhado, remova essas contas ou redefina suas senhas antes de publicar.
 
 ---
 
@@ -128,8 +161,8 @@ docker exec coworking-backend php artisan test
 cd backend && php artisan test
 ```
 
-**Resultado:** **30 testes passando (124 asserções) com 100% de sucesso.**
-- ✅ Fluxo de cadastro e autenticação Sanctum/Bearer Token
+A suíte MySQL da CI também cobre concorrência com processos independentes. Use um banco de teste descartável para esse modo.
+- ✅ Fluxo de cadastro e autenticação por Bearer token
 - ✅ Validação contra e-mails duplicados e senhas divergentes
 - ✅ Criação de reserva com sucesso e cálculo de preço
 - ✅ **Teste obrigatório comprovando erro 422 ao tentar reservar horário conflitante (Double-Booking)**
@@ -148,7 +181,13 @@ docker exec coworking-frontend npm run build
 cd frontend && npm run lint && npm run build
 ```
 
-**Resultado:** **0 erros e 0 warnings no ESLint e compilação de produção sem falhas via Vite.**
+### Validação mobile
+
+```bash
+cd mobile
+flutter analyze --no-fatal-infos
+flutter test
+```
 
 ---
 

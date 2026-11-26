@@ -3,6 +3,7 @@
 return [
     // Fuso dos horários de funcionamento/disponibilidade dos locais (o banco armazena em UTC).
     'timezone' => env('COWORKING_TIMEZONE', 'America/Sao_Paulo'),
+    'demo_password' => env('COWORKING_DEMO_PASSWORD'),
 
     'reservations' => [
         // Granularidade das reservas por hora, em minutos.
