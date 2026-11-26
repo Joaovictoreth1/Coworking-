@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../auth/context'
 import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import { ApiError } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
 import { inputClass, primaryButton } from '../lib/ui'
@@ -45,6 +46,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
     } = useBookingPreviewQuery(space.id, startIso, endIso, isValidRange)
 
     const createBooking = useCreateBookingMutation(space.id)
+    const canBook = isValidRange && preview?.available === true && !previewError
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
@@ -54,7 +56,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             return
         }
 
-        if (!isValidRange || preview?.available === false) {
+        if (!canBook) {
             return
         }
 
@@ -74,7 +76,9 @@ export function BookingWidget({ space }: BookingWidgetProps) {
         preview?.available === false
             ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
             : previewError
-              ? 'Horário indisponível ou fora do período de funcionamento.'
+              ? previewError instanceof ApiError
+                  ? previewError.message
+                  : 'Horário indisponível ou fora do período de funcionamento.'
               : null
 
     return (
@@ -199,7 +203,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 {/* Botão de Ação */}
                 <button
                     type="submit"
-                    disabled={isChecking || createBooking.isPending || (isValidRange && preview?.available === false)}
+                    disabled={Boolean(user) && (isChecking || createBooking.isPending || !canBook)}
                     className={`${primaryButton} w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                     {createBooking.isPending ? (
