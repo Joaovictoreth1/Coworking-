@@ -27,5 +27,4 @@ jobs:
       - run: npm ci
       # Há erros de lint antigos (react-hooks); por enquanto informativo, o build/tsc é bloqueante.
       - run: npm run lint
-        continue-on-error: true
       - run: npm run build
