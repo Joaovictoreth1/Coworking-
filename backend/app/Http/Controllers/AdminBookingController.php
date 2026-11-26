@@ -44,10 +44,10 @@ class AdminBookingController extends Controller
         }
 
         if ($request->filled('search')) {
-            $term = '%' . $request->query('search') . '%';
+            $term = '%'.$request->query('search').'%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                  ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                    ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 
@@ -66,10 +66,7 @@ class AdminBookingController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $booking->update([
-            'status' => $validated['status'],
-            'notes' => $validated['notes'] ?? $booking->notes,
-        ]);
+        $booking = $this->bookingService->updateStatus($booking, $validated['status'], $validated['notes'] ?? null);
 
         $booking->load(['space', 'user']);
 

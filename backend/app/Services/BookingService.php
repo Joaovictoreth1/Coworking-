@@ -9,7 +9,6 @@ use App\Models\Space;
 use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -143,30 +142,20 @@ class BookingService
      */
     public function createBooking(User $user, Space $space, array $data): Booking
     {
-        if (! $space->is_active) {
-            throw ValidationException::withMessages([
-                'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
-            ]);
-        }
-
         $startTime = Carbon::parse($data['start_time']);
         $endTime = Carbon::parse($data['end_time']);
 
-        // Valida funcionamento
-        $this->validateWorkingHours($space, $startTime, $endTime);
-
         return DB::transaction(function () use ($user, $space, $startTime, $endTime, $data) {
-            // Previne Race Condition com Lock Pessimista
-            DB::table('bookings')
-                ->where('space_id', $space->id)
-                ->where('status', '!=', Booking::STATUS_CANCELLED)
-                ->lockForUpdate()
-                ->get();
+            $space = Space::query()->whereKey($space->id)->lockForUpdate()->first();
+            if (! $space || ! $space->is_active) {
+                throw ValidationException::withMessages([
+                    'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
+                ]);
+            }
 
-            // Valida Double-Booking
+            $this->validateWorkingHours($space, $startTime, $endTime);
             $this->validateNoOverlap($space, $startTime, $endTime);
 
-            // Calcula preço
             $totalPrice = $this->calculateTotalPrice($space, $startTime, $endTime);
 
             return Booking::create([
@@ -175,10 +164,26 @@ class BookingService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'total_price' => $totalPrice,
-                'status' => $data['status'] ?? Booking::STATUS_CONFIRMED,
+                'status' => Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
             ]);
-        });
+        }, 3);
+    }
+
+    public function updateStatus(Booking $booking, string $status, ?string $notes): Booking
+    {
+        return DB::transaction(function () use ($booking, $status, $notes) {
+            $space = Space::query()->whereKey($booking->space_id)->lockForUpdate()->firstOrFail();
+            $booking = Booking::query()->whereKey($booking->id)->lockForUpdate()->firstOrFail();
+
+            if ($booking->status === Booking::STATUS_CANCELLED && $status !== Booking::STATUS_CANCELLED) {
+                $this->validateNoOverlap($space, $booking->start_time, $booking->end_time, $booking->id);
+            }
+
+            $booking->update(['status' => $status, 'notes' => $notes ?? $booking->notes]);
+
+            return $booking;
+        }, 3);
     }
 
     /**
