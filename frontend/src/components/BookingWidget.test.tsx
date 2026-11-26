@@ -54,6 +54,16 @@ test('previews and submits tomorrow in the scheduling timezone, not UTC', async 
     expect(fetch).toHaveBeenNthCalledWith(1, expect.stringMatching(/\/bookings\/preview$/), expect.objectContaining({ body }))
     expect(fetch).toHaveBeenNthCalledWith(2, expect.stringMatching(/\/bookings$/), expect.objectContaining({ body }))
 })
+test('distinguishes a pending availability check from an invalid time range', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})))
+    mount()
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Verificando disponibilidade...')
+    fireEvent.change(screen.getByLabelText('Saída'), { target: { value: '08:00' } })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(screen.getByText(/Selecione uma data e um horário de saída/)).toBeVisible()
+})
+
 test('does not submit a booking when the preview rejects the slot', async () => {
     const fetch = vi.fn().mockImplementation(() =>
         Promise.resolve(Response.json({ message: 'Horário já reservado.' }, { status: 422 })))

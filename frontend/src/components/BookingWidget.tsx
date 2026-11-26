@@ -183,6 +183,13 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     />
                 </div>
 
+                {isValidRange && isChecking && (
+                    <p role="status" className="text-xs text-slate-600">Verificando disponibilidade...</p>
+                )}
+                {!isValidRange && (
+                    <p className="text-xs text-slate-600">Selecione uma data e um horário de saída posterior à entrada.</p>
+                )}
+
                 {/* Feedback em Tempo Real de Conflito de Horário */}
                 {conflictMessage && (
                     <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium space-y-1">
@@ -195,7 +202,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 )}
 
                 {/* Resumo do Valor Calculado */}
-                {isValidRange && preview?.available && !conflictMessage && (
+                {isValidRange && !isChecking && preview?.available && !conflictMessage && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>

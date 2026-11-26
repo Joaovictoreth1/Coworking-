@@ -37,3 +37,15 @@ test('shows booking times and dates in the scheduling timezone on the admin list
     expect(within(previousDay).getByText('09/06/2029')).toBeVisible()
     expect(previousDay).toHaveTextContent('23:00 às 00:00 (1h)')
 })
+
+test('distinguishes failed admin queries from empty results', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockImplementation(() =>
+        Promise.resolve(Response.json({ message: 'Indisponível' }, { status: 503 }))))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><AdminDashboard /></QueryClientProvider>)
+
+    expect(await screen.findByText('Não foi possível carregar as métricas.')).toBeVisible()
+    expect(await screen.findByText('Não foi possível carregar as reservas.')).toBeVisible()
+    expect(screen.queryByText(/Nenhuma reserva encontrada/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Distribuição Geral de Reservas')).not.toBeInTheDocument()
+})

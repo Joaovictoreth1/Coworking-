@@ -30,3 +30,23 @@ test('shows the local schedule on the booking card and voucher for timestamps re
     fireEvent.click(screen.getByRole('button', { name: /Comprovante/ }))
     expect(screen.getByText('Horário / Período:').parentElement).toHaveTextContent('09:00 às 13:00 (4h)')
 })
+
+test('navigates booking pages and resets to page one when the status changes', async () => {
+    const fetch = vi.fn().mockImplementation((url: string) => {
+        const page = Number(new URL(url).searchParams.get('page'))
+        return Promise.resolve(Response.json({
+            data: [],
+            meta: { current_page: page, last_page: 2, per_page: 15, total: 16 },
+        }))
+    })
+    vi.stubGlobal('fetch', fetch)
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(<QueryClientProvider client={client}><MyBookings /></QueryClientProvider>)
+
+    expect(await screen.findByText('Página 1 de 2')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Próxima' }))
+    expect(await screen.findByText('Página 2 de 2')).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmadas' }))
+    expect(await screen.findByText('Página 1 de 2')).toBeVisible()
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining('?page=1&status=confirmed'), expect.anything())
+})

@@ -44,8 +44,8 @@ export default function AdminDashboard() {
     const [statusFilter, setStatusFilter] = useState<string>('')
     const [search, setSearch] = useState<string>('')
 
-    const { data: metrics, isLoading: loadingMetrics } = useAdminMetricsQuery()
-    const { data: bookingsData, isLoading: loadingBookings } = useAdminBookingsQuery({
+    const { data: metrics, isLoading: loadingMetrics, isError: metricsError } = useAdminMetricsQuery()
+    const { data: bookingsData, isLoading: loadingBookings, isError: bookingsError } = useAdminBookingsQuery({
         status: statusFilter || undefined,
         search: search.trim() || undefined,
     })
@@ -91,7 +91,12 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* Métricas e KPIs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {metricsError && (
+                    <p role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">
+                        Não foi possível carregar as métricas.
+                    </p>
+                )}
+                {!metricsError && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Faturamento Estimado */}
                     <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -184,10 +189,10 @@ export default function AdminDashboard() {
                             </div>
                         )}
                     </div>
-                </div>
+                </div>}
 
                 {/* Barra Visual de Distribuição de Status */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+                {!metricsError && !loadingMetrics && <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                             <h3 className="text-sm font-bold text-slate-900">
@@ -271,7 +276,7 @@ export default function AdminDashboard() {
                             title={`Canceladas: ${cancelledPct}%`}
                         />
                     </div>
-                </div>
+                </div>}
 
                 {/* Gestão de Reservas */}
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -325,6 +330,12 @@ export default function AdminDashboard() {
                                     <tr>
                                         <td colSpan={7} className="py-8 text-center text-slate-400">
                                             Carregando reservas...
+                                        </td>
+                                    </tr>
+                                ) : bookingsError ? (
+                                    <tr>
+                                        <td colSpan={7} className="py-8 text-center text-rose-700">
+                                            <span role="alert">Não foi possível carregar as reservas.</span>
                                         </td>
                                     </tr>
                                 ) : bookings.length === 0 ? (

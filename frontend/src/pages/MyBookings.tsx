@@ -60,11 +60,14 @@ function getStatusBadge(status: Booking['status']) {
 
 export default function MyBookings() {
     const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
+    const [page, setPage] = useState(1)
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
-    const { data: bookings, isLoading, error } = useUserBookingsQuery(selectedTab || undefined)
+    const { data, isLoading, error } = useUserBookingsQuery(page, selectedTab || undefined)
+    const bookings = data?.data
+    const meta = data?.meta
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
@@ -102,7 +105,10 @@ export default function MyBookings() {
                             <button
                                 key={tab.value}
                                 type="button"
-                                onClick={() => setSelectedTab(tab.value)}
+                                onClick={() => {
+                                    setSelectedTab(tab.value)
+                                    setPage(1)
+                                }}
                                 className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer whitespace-nowrap ${
                                     active
                                         ? 'bg-slate-900 text-white shadow-sm'
@@ -241,6 +247,21 @@ export default function MyBookings() {
                         ))
                     )}
                 </div>
+                {meta && (meta.last_page > 1 || page > 1) && !error && (
+                    <nav aria-label="Paginação de reservas" className="mt-6 flex items-center justify-between gap-3 text-sm text-slate-600">
+                        <span>Página {meta.current_page} de {meta.last_page}</span>
+                        <div className="flex gap-2">
+                            <button type="button" className={secondaryButton} disabled={page <= 1}
+                                onClick={() => setPage(Math.min(page - 1, meta.last_page))}>
+                                Anterior
+                            </button>
+                            <button type="button" className={secondaryButton} disabled={page >= meta.last_page}
+                                onClick={() => setPage(page + 1)}>
+                                Próxima
+                            </button>
+                        </div>
+                    </nav>
+                )}
             </div>
 
             {/* Modal de Comprovante de Reserva */}
