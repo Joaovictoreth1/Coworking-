@@ -18,6 +18,18 @@ class ReservationTest extends TestCase
 
     private Space $space;
 
+    public function test_reservation_rejects_unpriced_rates_and_advance_limit(): void
+    {
+        $user = User::factory()->create();
+        $this->space->update(['daily_price' => null]);
+        $this->book($user, ['rate' => 'daily', 'starts_at' => '2026-11-10', 'ends_at' => '2026-11-10'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Este local não aceita reservas nesta modalidade.');
+        $this->book($user, $this->hourly(day: '2027-06-01'))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Só é possível reservar com até 180 dias de antecedência.');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

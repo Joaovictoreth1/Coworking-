@@ -15,6 +15,30 @@ class BookingTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_booking_preview_quotes_free_and_daily_only_spaces(): void
+    {
+        $start = Carbon::now()->addDays(2)->startOfDay();
+        $end = $start->copy()->addHours(26);
+        $payload = ['start_time' => $start->toIso8601String(), 'end_time' => $end->toIso8601String()];
+        $space = Space::factory()->create([
+            'opening_hours' => null,
+            'hourly_price' => null,
+            'daily_price' => 80,
+        ]);
+
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", $payload)
+            ->assertOk()
+            ->assertJsonPath('total_price', 100);
+        $payload['end_time'] = $start->copy()->addHours(2)->toIso8601String();
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", $payload)
+            ->assertOk()
+            ->assertJsonPath('total_price', 80);
+        $space->update(['is_free' => true]);
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", $payload)
+            ->assertOk()
+            ->assertJsonPath('total_price', 0);
+    }
+
     public function test_authenticated_user_can_create_booking_successfully(): void
     {
         $user = User::factory()->create();
