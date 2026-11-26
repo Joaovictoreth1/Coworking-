@@ -17,7 +17,7 @@ describe('useUiStore', () => {
         })
     })
 
-    it('clears catalog filters while preserving selected sort order', () => {
+    it('clears catalog filters while preserving search and sort order', () => {
         const store = useUiStore.getState()
         store.setCatalogSearch('paulista')
         store.setCatalogFilters((prev) => ({
@@ -31,7 +31,7 @@ describe('useUiStore', () => {
         useUiStore.getState().clearCatalogFilters()
 
         const next = useUiStore.getState()
-        expect(next.catalogSearch).toBe('')
+        expect(next.catalogSearch).toBe('paulista')
         expect(next.catalogPage).toBe(1)
         expect(next.catalogFilters.priceType).toBe('')
         expect(next.catalogFilters.minPrice).toBe('')

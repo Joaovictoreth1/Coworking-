@@ -45,7 +45,6 @@ export const useUiStore = create<UiState>((set) => ({
     setCatalogPage: (catalogPage) => set({ catalogPage }),
     clearCatalogFilters: () =>
         set((state) => ({
-            catalogSearch: '',
             catalogFilters: { ...EMPTY_FILTERS, sort: state.catalogFilters.sort },
             catalogPage: 1,
         })),
