@@ -113,13 +113,25 @@ export default function Home() {
                 >
                     <SearchIcon className="pointer-events-none absolute top-1/2 left-4 h-5 w-5 -translate-y-1/2 text-slate-400" />
                     <input
+                        id="home-search"
+                        name="q"
                         type="search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Buscar por nome do espaço, bairro ou cidade (ex.: Paulista, Pinheiros, São Paulo)..."
                         aria-label="Buscar locais"
-                        className="h-13 w-full rounded-2xl border border-white/15 bg-white pl-12 pr-4 text-base text-slate-900 shadow-lg placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/25 focus:outline-none"
+                        className="h-13 w-full rounded-2xl border border-white/15 bg-white pl-12 pr-12 text-base text-slate-900 shadow-lg placeholder:text-slate-400 focus:border-indigo-400 focus:ring-4 focus:ring-indigo-500/25 focus:outline-none"
                     />
+                    {search && (
+                        <button
+                            type="button"
+                            onClick={() => setSearch('')}
+                            aria-label="Limpar busca"
+                            className="absolute top-1/2 right-3 -translate-y-1/2 grid h-8 w-8 place-items-center rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 cursor-pointer"
+                        >
+                            ×
+                        </button>
+                    )}
                 </form>
 
                 {/* Atalhos rápidos + indicadores de confiança */}
@@ -235,10 +247,50 @@ export default function Home() {
                     <>
                         {meta && (
                             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                                <p aria-live="polite" className="text-sm font-medium text-slate-600">
-                                    {meta.total} {meta.total === 1 ? 'local' : 'locais'}
-                                    {filtersOn ? ' encontrados' : ' disponíveis'}
-                                </p>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <p aria-live="polite" className="text-sm font-medium text-slate-600">
+                                        {meta.total} {meta.total === 1 ? 'local' : 'locais'}
+                                        {filtersOn ? ' encontrados' : ' disponíveis'}
+                                    </p>
+                                    {search.trim() && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setSearch('')}
+                                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 cursor-pointer"
+                                        >
+                                            Busca: “{search.trim()}” <span aria-hidden="true">×</span>
+                                        </button>
+                                    )}
+                                    {filters.priceType && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setFilters({ ...filters, priceType: '' })}
+                                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 cursor-pointer"
+                                        >
+                                            {QUICK_PRESETS.find((p) => p.priceType === filters.priceType)?.label ??
+                                                filters.priceType}{' '}
+                                            <span aria-hidden="true">×</span>
+                                        </button>
+                                    )}
+                                    {filters.minPrice && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setFilters({ ...filters, minPrice: '' })}
+                                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 cursor-pointer"
+                                        >
+                                            Mín: R$ {filters.minPrice} <span aria-hidden="true">×</span>
+                                        </button>
+                                    )}
+                                    {filters.maxPrice && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setFilters({ ...filters, maxPrice: '' })}
+                                            className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 cursor-pointer"
+                                        >
+                                            Máx: R$ {filters.maxPrice} <span aria-hidden="true">×</span>
+                                        </button>
+                                    )}
+                                </div>
                                 {filtersOn && (
                                     <button
                                         type="button"
@@ -279,8 +331,11 @@ export default function Home() {
                         <button
                             type="button"
                             disabled={meta.current_page <= 1}
-                            onClick={() => goToPage(meta.current_page - 1)}
-                            className={`${secondaryButton} !h-10 !px-3 text-sm`}
+                            onClick={() => {
+                                goToPage(meta.current_page - 1)
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                            }}
+                            className={`${secondaryButton} !h-10 !rounded-xl !px-3 text-sm`}
                         >
                             <ChevronLeftIcon className="h-4 w-4" />
                             Anterior
@@ -288,14 +343,71 @@ export default function Home() {
                         <button
                             type="button"
                             disabled={meta.current_page >= meta.last_page}
-                            onClick={() => goToPage(meta.current_page + 1)}
-                            className={`${secondaryButton} !h-10 !px-3 text-sm`}
+                            onClick={() => {
+                                goToPage(meta.current_page + 1)
+                                window.scrollTo({ top: 0, behavior: 'smooth' })
+                            }}
+                            className={`${secondaryButton} !h-10 !rounded-xl !px-3 text-sm`}
                         >
                             Próxima
                             <ChevronRightIcon className="h-4 w-4" />
                         </button>
                     </div>
                 </nav>
+            )}
+
+            {!filtersOn && (
+                <section
+                    aria-labelledby="how-it-works-heading"
+                    className="mt-14 rounded-3xl border border-slate-200/90 bg-white p-6 shadow-xs sm:p-8"
+                >
+                    <div className="max-w-2xl">
+                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                            Simples e rápido
+                        </span>
+                        <h2
+                            id="how-it-works-heading"
+                            className="mt-1 font-display text-2xl font-bold tracking-tight text-slate-900"
+                        >
+                            Como funciona o Coworking Brasil
+                        </h2>
+                    </div>
+                    <ol className="mt-6 grid gap-5 md:grid-cols-3">
+                        <li className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
+                                1
+                            </span>
+                            <h3 className="mt-3 font-display text-base font-semibold text-slate-900">
+                                Compare e escolha
+                            </h3>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                Filtre por bairro, preço por hora, diária, mensal ou espaços gratuitos com avaliações reais.
+                            </p>
+                        </li>
+                        <li className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
+                                2
+                            </span>
+                            <h3 className="mt-3 font-display text-base font-semibold text-slate-900">
+                                Reserve em segundos
+                            </h3>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                Veja a disponibilidade e o valor total em tempo real antes de confirmar — sem surpresas.
+                            </p>
+                        </li>
+                        <li className="rounded-2xl border border-slate-100 bg-slate-50/70 p-5">
+                            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-600 text-sm font-bold text-white">
+                                3
+                            </span>
+                            <h3 className="mt-3 font-display text-base font-semibold text-slate-900">
+                                Apresente seu voucher
+                            </h3>
+                            <p className="mt-1.5 text-sm leading-relaxed text-slate-600">
+                                Seu código de check-in fica salvo em Minhas Reservas para copiar com um clique.
+                            </p>
+                        </li>
+                    </ol>
+                </section>
             )}
         </ComponentBody>
     )

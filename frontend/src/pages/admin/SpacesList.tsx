@@ -161,23 +161,27 @@ export default function SpacesList() {
                 </div>
             )}
 
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:flex-row">
                 <div className="relative flex-1">
                     <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-500" />
                     <input
+                        id="admin-spaces-search"
+                        name="q"
                         type="search"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                         placeholder="Buscar por nome, rua, bairro ou cidade"
                         aria-label="Buscar locais"
-                        className={`h-11 pl-10 ${inputClass(false)}`}
+                        className={`h-11 rounded-xl pl-10 ${inputClass(false)}`}
                     />
                 </div>
                 <select
+                    id="admin-spaces-status"
+                    name="status"
                     value={status}
                     onChange={(e) => changeStatus(e.target.value)}
                     aria-label="Filtrar por status"
-                    className={`h-11 sm:w-52 ${inputClass(false)}`}
+                    className={`h-11 rounded-xl sm:w-52 ${inputClass(false)}`}
                 >
                     {STATUS_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -230,16 +234,16 @@ export default function SpacesList() {
                     </div>
                 ) : (
                     <ul
-                        className={`divide-y divide-slate-200 overflow-hidden rounded-md border border-slate-200 bg-white transition-opacity ${
+                        className={`divide-y divide-slate-200/80 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-opacity ${
                             loading ? 'opacity-60' : ''
                         }`}
                     >
                         {items.map((space) => (
                             <li
                                 key={space.id}
-                                className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center"
+                                className="flex flex-col gap-4 p-4 transition hover:bg-slate-50/70 sm:flex-row sm:items-center"
                             >
-                                <div className="grid h-36 w-full place-items-center overflow-hidden rounded-md bg-slate-100 text-slate-600 sm:h-20 sm:w-32 sm:shrink-0">
+                                <div className="grid h-36 w-full place-items-center overflow-hidden rounded-xl bg-slate-100 text-slate-600 sm:h-20 sm:w-32 sm:shrink-0">
                                     {space.cover_url ? (
                                         <img
                                             src={space.cover_url}
@@ -285,10 +289,18 @@ export default function SpacesList() {
                                     </p>
                                 </div>
 
-                                <div className="flex gap-2">
+                                <div className="flex flex-wrap gap-2">
+                                    {space.is_active && (
+                                        <a
+                                            href={href('space-detail', space.id)}
+                                            className={`${secondaryButton} !h-10 !rounded-xl !px-3.5 text-sm`}
+                                        >
+                                            Ver página
+                                        </a>
+                                    )}
                                     <a
                                         href={href('space-edit', space.id)}
-                                        className={`${secondaryButton} !h-10 !px-4 text-sm`}
+                                        className={`${secondaryButton} !h-10 !rounded-xl !px-4 text-sm`}
                                     >
                                         <PencilIcon className="h-4 w-4" />
                                         Editar
@@ -300,7 +312,7 @@ export default function SpacesList() {
                                             setToDelete(space)
                                         }}
                                         aria-label={`Excluir ${space.name}`}
-                                        className="grid h-10 w-10 place-items-center rounded-md border border-slate-200 text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700"
+                                        className="grid h-10 w-10 place-items-center rounded-xl border border-slate-200 text-slate-600 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 cursor-pointer"
                                     >
                                         <TrashIcon className="h-4 w-4" />
                                     </button>

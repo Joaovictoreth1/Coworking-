@@ -4,8 +4,13 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#4f46e5" />
+    <meta name="theme-color" content="#0f172a" />
     <meta name="robots" content="index, follow" />
+    <meta name="author" content="Coworking Brasil" />
+    <meta
+      name="keywords"
+      content="coworking, sala de reunião, escritório compartilhado, estação de trabalho, reserva online, espaço gratuito, Brasil"
+    />
 
     <title>Coworking Brasil · Encontre e reserve espaços de trabalho</title>
     <meta
@@ -15,30 +20,250 @@
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- As fontes (Bricolage Grotesque + Instrument Sans) são importadas em src/index.css;
-         o preconnect apenas adianta a conexão e reduz o tempo até o primeiro texto. -->
+    <!-- Pré-conexão das fontes Bricolage Grotesque + Instrument Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
-    <!-- Open Graph / redes sociais -->
+    <!-- Open Graph / Twitter -->
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="pt_BR" />
     <meta property="og:site_name" content="Coworking Brasil" />
     <meta property="og:title" content="Coworking Brasil · Encontre e reserve espaços de trabalho" />
     <meta
       property="og:description"
-      content="Busque coworkings e salas por preço, comodidades e capacidade. Compare, favorite e reserve online."
+      content="Busque coworkings e salas por preço, comodidades e capacidade. Compare, favorite e reserve online com confirmação imediata e voucher digital."
     />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Coworking Brasil · Encontre e reserve espaços de trabalho" />
+    <meta
+      name="twitter:description"
+      content="Coworkings, salas privativas e espaços gratuitos com reserva imediata e voucher digital."
+    />
+
+    <!-- Dados estruturados (Schema.org) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Coworking Brasil",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "pt-BR",
+        "description": "Plataforma para descoberta, comparação e reserva imediata de espaços de coworking, salas de reunião e estações de trabalho no Brasil."
+      }
+    </script>
+
+    <!-- Estilos críticos para pintura imediata antes do bundle JS -->
+    <style>
+      .app-boot {
+        min-height: 100vh;
+        background: #f8fafc;
+        color: #0f172a;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      .app-boot-header {
+        height: 64px;
+        border-bottom: 1px solid #e2e8f0;
+        background: rgba(255, 255, 255, 0.9);
+        display: flex;
+        align-items: center;
+        padding: 0 24px;
+      }
+      .app-boot-brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1.05rem;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+        text-decoration: none;
+      }
+      .app-boot-logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #4f46e5, #6366f1);
+        color: #fff;
+        display: grid;
+        place-items: center;
+        font-weight: 800;
+        font-size: 0.9rem;
+      }
+      .app-boot-main {
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 28px 24px 48px;
+        flex: 1;
+      }
+      .app-boot-hero {
+        border-radius: 24px;
+        background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #0f172a 100%);
+        color: #ffffff;
+        padding: 40px 32px;
+        box-shadow: 0 20px 40px -24px rgba(15, 23, 42, 0.55);
+      }
+      .app-boot-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        background: rgba(99, 102, 241, 0.2);
+        border: 1px solid rgba(129, 140, 248, 0.35);
+        color: #c7d2fe;
+      }
+      .app-boot-hero h1 {
+        margin: 14px 0 8px;
+        font-size: clamp(1.75rem, 4vw, 2.75rem);
+        line-height: 1.15;
+        letter-spacing: -0.025em;
+      }
+      .app-boot-hero p {
+        margin: 0;
+        max-width: 600px;
+        color: #cbd5e1;
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+      .app-boot-bar {
+        margin-top: 24px;
+        height: 4px;
+        width: 180px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.16);
+        overflow: hidden;
+      }
+      .app-boot-bar::after {
+        content: '';
+        display: block;
+        height: 100%;
+        width: 45%;
+        border-radius: 999px;
+        background: #818cf8;
+        animation: bootSlide 1.1s ease-in-out infinite;
+      }
+      .app-boot-grid {
+        margin-top: 28px;
+        display: grid;
+        gap: 20px;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      }
+      .app-boot-card {
+        height: 260px;
+        border-radius: 20px;
+        border: 1px solid #e2e8f0;
+        background: #ffffff;
+        overflow: hidden;
+      }
+      .app-boot-card-img {
+        height: 148px;
+        background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+        background-size: 200% 100%;
+        animation: bootShimmer 1.4s infinite;
+      }
+      .app-boot-card-body {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .app-boot-line {
+        height: 12px;
+        border-radius: 6px;
+        background: #e2e8f0;
+      }
+      @keyframes bootSlide {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(260%); }
+      }
+      @keyframes bootShimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+    </style>
   </head>
   <body>
     <noscript>
-      <div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif; color: #0f172a;">
-        <h1>Coworking Brasil</h1>
-        <p>Ative o JavaScript no seu navegador para buscar e reservar espaços de trabalho.</p>
+      <div
+        style="
+          max-width: 560px;
+          margin: 48px auto;
+          padding: 32px;
+          border-radius: 20px;
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          text-align: center;
+          font-family: system-ui, -apple-system, sans-serif;
+          color: #0f172a;
+        "
+      >
+        <h1 style="margin: 0 0 12px; font-size: 1.5rem;">Coworking Brasil</h1>
+        <p style="margin: 0; color: #475569; line-height: 1.6;">
+          Ative o JavaScript no seu navegador para buscar, comparar e reservar espaços de trabalho com confirmação imediata.
+        </p>
       </div>
     </noscript>
-    <div id="root"></div>
+
+    <!-- Shell inicial instantâneo substituído automaticamente pelo React ao montar -->
+    <div id="root">
+      <div class="app-boot" aria-busy="true" aria-label="Carregando Coworking Brasil">
+        <header class="app-boot-header">
+          <span class="app-boot-brand">
+            <span class="app-boot-logo">CB</span>
+            Coworking Brasil
+          </span>
+        </header>
+        <main class="app-boot-main">
+          <section class="app-boot-hero">
+            <span class="app-boot-badge">Coworking Brasil · Reserva imediata</span>
+            <h1>Encontre o espaço ideal para produzir melhor</h1>
+            <p>
+              Coworkings, salas de reunião, bibliotecas e estações de trabalho em todo o Brasil — com confirmação imediata e voucher digital.
+            </p>
+            <div class="app-boot-bar" role="progressbar" aria-label="Carregando aplicação"></div>
+          </section>
+          <div class="app-boot-grid" aria-hidden="true">
+            <div class="app-boot-card">
+              <div class="app-boot-card-img"></div>
+              <div class="app-boot-card-body">
+                <div class="app-boot-line" style="width: 72%"></div>
+                <div class="app-boot-line" style="width: 48%"></div>
+                <div class="app-boot-line" style="width: 35%"></div>
+              </div>
+            </div>
+            <div class="app-boot-card">
+              <div class="app-boot-card-img"></div>
+              <div class="app-boot-card-body">
+                <div class="app-boot-line" style="width: 68%"></div>
+                <div class="app-boot-line" style="width: 52%"></div>
+                <div class="app-boot-line" style="width: 40%"></div>
+              </div>
+            </div>
+            <div class="app-boot-card">
+              <div class="app-boot-card-img"></div>
+              <div class="app-boot-card-body">
+                <div class="app-boot-line" style="width: 80%"></div>
+                <div class="app-boot-line" style="width: 45%"></div>
+                <div class="app-boot-line" style="width: 30%"></div>
+              </div>
+            </div>
+            <div class="app-boot-card">
+              <div class="app-boot-card-img"></div>
+              <div class="app-boot-card-body">
+                <div class="app-boot-line" style="width: 64%"></div>
+                <div class="app-boot-line" style="width: 55%"></div>
+                <div class="app-boot-line" style="width: 38%"></div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

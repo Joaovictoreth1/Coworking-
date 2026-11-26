@@ -11,6 +11,7 @@ import { inputClass } from '../lib/ui'
 // --- Tipos e Interfaces ---
 interface PriceInputProps {
     label: string
+    name: string
     value: string
     onChange: (value: string) => void
     disabled?: boolean
@@ -23,7 +24,7 @@ interface SpaceFiltersProps {
 }
 
 // --- Componentes Menores ---
-function PriceInput({ label, value, onChange, disabled = false }: PriceInputProps) {
+function PriceInput({ label, name, value, onChange, disabled = false }: PriceInputProps) {
     const id = useId()
 
     // Extraído para melhorar a leitura do JSX
@@ -47,13 +48,14 @@ function PriceInput({ label, value, onChange, disabled = false }: PriceInputProp
                 </span>
                 <input
                     id={id}
+                    name={name}
                     type="text"
                     inputMode="decimal"
                     value={value}
                     disabled={disabled}
                     placeholder="0,00"
                     onChange={handleChange}
-                    className={`h-10 w-full pl-9 text-sm ${inputClass(disabled)}`}
+                    className={`h-10 w-full rounded-xl pl-9 text-sm ${inputClass(disabled)}`}
                 />
             </div>
         </div>
@@ -101,7 +103,7 @@ export default function SpaceFilters({ value, onChange, onClear }: SpaceFiltersP
                                     type="button"
                                     aria-pressed={isActive}
                                     onClick={() => setFilter('priceType', type.value)}
-                                    className={`h-10 rounded-md border px-4 text-sm font-medium transition ${buttonClasses}`}
+                                    className={`h-10 rounded-xl border px-4 text-sm font-medium transition cursor-pointer ${buttonClasses}`}
                                 >
                                     {type.label}
                                 </button>
@@ -120,11 +122,13 @@ export default function SpaceFilters({ value, onChange, onClear }: SpaceFiltersP
                         <>
                             <PriceInput
                                 label={`Preço mínimo${unit ? ` (${unit})` : ''}`}
+                                name="min_price"
                                 value={value.minPrice}
                                 onChange={(v) => setFilter('minPrice', v)}
                             />
                             <PriceInput
                                 label={`Preço máximo${unit ? ` (${unit})` : ''}`}
+                                name="max_price"
                                 value={value.maxPrice}
                                 onChange={(v) => setFilter('maxPrice', v)}
                             />
@@ -137,9 +141,10 @@ export default function SpaceFilters({ value, onChange, onClear }: SpaceFiltersP
                         </label>
                         <select
                             id={sortId}
+                            name="sort"
                             value={value.sort}
                             onChange={(e) => setFilter('sort', e.target.value as SortKey)}
-                            className={`h-10 w-full px-3 text-sm ${inputClass(false)}`}
+                            className={`h-10 w-full rounded-xl px-3 text-sm ${inputClass(false)}`}
                         >
                             {SORT_OPTIONS.map((option) => (
                                 <option key={option.value} value={option.value}>

@@ -117,10 +117,10 @@ export default function AdminDashboard() {
                         </h1>
                     </div>
                     <div className="flex items-center gap-3">
-                        <a href={href('admin_spaces')} className={secondaryButton}>
+                        <a href={href('admin_spaces')} className={`${secondaryButton} !rounded-xl`}>
                             Gerenciar Espaços
                         </a>
-                        <a href={href('admin_space_new')} className={primaryButton}>
+                        <a href={href('admin_space_new')} className={`${primaryButton} !rounded-xl`}>
                             + Novo Espaço
                         </a>
                     </div>
@@ -343,16 +343,22 @@ export default function AdminDashboard() {
 
                         <div className="flex flex-wrap items-center gap-3">
                             <input
-                                type="text"
+                                id="admin-bookings-search"
+                                name="bookings_search"
+                                type="search"
+                                aria-label="Buscar reservas por cliente ou espaço"
                                 placeholder="Buscar por cliente ou espaço..."
                                 value={search}
                                 onChange={(e) => handleSearchChange(e.target.value)}
-                                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs w-56 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                                className="px-3.5 py-2 rounded-xl border border-slate-200 text-xs w-56 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                             />
                             <select
+                                id="admin-bookings-status"
+                                name="bookings_status"
+                                aria-label="Filtrar reservas por status"
                                 value={statusFilter}
                                 onChange={(e) => handleStatusFilterChange(e.target.value)}
-                                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                             >
                                 <option value="">Todos os status</option>
                                 <option value="pending">Pendentes</option>
@@ -360,6 +366,19 @@ export default function AdminDashboard() {
                                 <option value="completed">Concluídas</option>
                                 <option value="cancelled">Canceladas</option>
                             </select>
+                            {(search || statusFilter) && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearch('')
+                                        setStatusFilter('')
+                                        setPage(1)
+                                    }}
+                                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                >
+                                    Limpar
+                                </button>
+                            )}
                         </div>
                     </div>
 
