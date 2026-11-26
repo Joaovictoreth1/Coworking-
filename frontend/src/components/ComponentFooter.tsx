@@ -36,7 +36,7 @@ export default function ComponentFooter() {
                             </span>
                         </a>
                         <p className="mt-3 max-w-xs text-sm text-slate-600">
-                            Um ponto de partida limpo para o seu projeto.
+                            Encontre e reserve coworkings, salas de reunião e estações de trabalho em todo o Brasil.
                         </p>
                     </div>
                     <FooterColumn title="Navegação" links={NAV_LINKS} />

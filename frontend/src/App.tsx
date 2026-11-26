@@ -19,6 +19,19 @@ const SpaceForm = lazy(() => import('./pages/admin/SpaceForm'))
 
 const ADMIN_ROUTES: Route[] = ['spaces', 'space-new', 'space-edit', 'admin-dashboard']
 
+const ROUTE_TITLES: Record<Route, string> = {
+    home: 'Coworking Brasil · Encontre e reserve espaços de trabalho',
+    login: 'Entrar · Coworking Brasil',
+    register: 'Criar conta · Coworking Brasil',
+    'space-detail': 'Detalhes do espaço · Coworking Brasil',
+    favorites: 'Meus favoritos · Coworking Brasil',
+    'my-bookings': 'Minhas reservas · Coworking Brasil',
+    'admin-dashboard': 'Painel administrativo · Coworking Brasil',
+    spaces: 'Gerenciar locais · Coworking Brasil',
+    'space-new': 'Novo espaço · Coworking Brasil',
+    'space-edit': 'Editar espaço · Coworking Brasil',
+}
+
 function FullScreenLoader({ label }: { label: string }) {
     return (
         <main
@@ -43,6 +56,10 @@ function AppContent() {
     const isAuthRoute = route === 'login' || route === 'register'
     const isAdminRoute = ADMIN_ROUTES.includes(route)
     const isPrivateRoute = isAdminRoute || route === 'favorites' || route === 'my-bookings'
+
+    useEffect(() => {
+        document.title = ROUTE_TITLES[route] ?? ROUTE_TITLES.home
+    }, [route])
 
     // Limpa o cache do React Query ao sair ou trocar de conta para evitar vazamento entre sessões
     useEffect(() => {
