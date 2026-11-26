@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 interface DropdownProps {
     trigger: ReactNode
@@ -17,6 +17,7 @@ export default function Dropdown({
 }: DropdownProps) {
     const [open, setOpen] = useState(false)
     const ref = useRef<HTMLDivElement>(null)
+    const menuId = useId()
 
     // Fecha ao clicar fora ou apertar Esc
     useEffect(() => {
@@ -41,6 +42,7 @@ export default function Dropdown({
                 type="button"
                 aria-haspopup="true"
                 aria-expanded={open}
+                aria-controls={menuId}
                 aria-label={label}
                 onClick={() => setOpen((o) => !o)}
                 className={triggerClassName}
@@ -49,6 +51,7 @@ export default function Dropdown({
             </button>
             {open && (
                 <div
+                    id={menuId}
                     className={`absolute z-50 mt-2 w-60 rounded-md border border-slate-200 bg-white p-1.5 motion-safe:animate-pop ${
                         align === 'right' ? 'right-0' : 'left-0'
                     }`}

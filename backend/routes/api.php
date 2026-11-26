@@ -76,7 +76,7 @@ Route::middleware(['auth.token', 'throttle:120,1,management:'])->prefix('admin')
     Route::put('spaces/{space}/photos/order', [SpacePhotoController::class, 'reorder']);
     Route::delete('spaces/{space}/photos/{photo}', [SpacePhotoController::class, 'destroy']);
 
-    // Gestão de Reservas e Métricas do Sistema
+    // Gestão de Reservas e Métricas do Sistema (exclusivo de administradores)
     Route::middleware('admin')->group(function () {
         Route::get('bookings', [AdminBookingController::class, 'index']);
         Route::patch('bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->whereNumber('booking');

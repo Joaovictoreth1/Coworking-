@@ -7,10 +7,13 @@ namespace App\Http\Controllers;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator as RequestValidator;
 
 class AdminBookingController extends Controller
 {
@@ -23,16 +26,33 @@ class AdminBookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $filters = $request->validate([
+        $validator = Validator::make($request->all(), [
             'page' => ['sometimes', 'integer', 'between:1,100000'],
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
             'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
             'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
             'space_id' => ['sometimes', 'integer', 'min:1'],
-            'from_date' => ['sometimes', 'date_format:Y-m-d'],
-            'to_date' => ['sometimes', 'date_format:Y-m-d', Rule::when($request->has('from_date'), 'after_or_equal:from_date')],
-            'search' => ['nullable', 'string', 'max:120'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+            'search' => ['nullable', 'string', 'max:255'],
+        ], [
+            'status.in' => 'Status de filtro inválido.',
         ]);
+        $validator->after(function (RequestValidator $validator): void {
+            $dates = $validator->getData();
+            if (isset($dates['from_date'], $dates['to_date'])
+                && ! $validator->errors()->hasAny(['from_date', 'to_date'])
+                && CarbonImmutable::parse($dates['to_date'])->toDateString() < CarbonImmutable::parse($dates['from_date'])->toDateString()
+            ) {
+                $validator->errors()->add('to_date', __('validation.after_or_equal', [
+                    'attribute' => 'to_date',
+                    'date' => 'from_date',
+                ]));
+            }
+        });
+        $filters = $validator->validate();
+        $fromDate = isset($filters['from_date']) ? CarbonImmutable::parse($filters['from_date'])->toDateString() : null;
+        $toDate = isset($filters['to_date']) ? CarbonImmutable::parse($filters['to_date'])->toDateString() : null;
         $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
         $query = Booking::query()
             ->with(['space', 'user'])
@@ -47,19 +67,20 @@ class AdminBookingController extends Controller
             $query->where('space_id', (int) $filters['space_id']);
         }
 
-        if (isset($filters['from_date'])) {
-            $query->where('start_time', '>=', $filters['from_date'].' 00:00:00');
+        if ($fromDate !== null) {
+            $query->where('start_time', '>=', $fromDate.' 00:00:00');
         }
 
-        if (isset($filters['to_date'])) {
-            $query->where('end_time', '<=', $filters['to_date'].' 23:59:59');
+        if ($toDate !== null) {
+            $query->where('end_time', '<', CarbonImmutable::parse($toDate)->addDay()->toDateTimeString());
         }
 
         if (isset($filters['search'])) {
-            $term = '%'.$filters['search'].'%';
+            $term = '%'.strtr(trim($filters['search']), ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
             $query->where(function ($q) use ($term) {
-                $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                    ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                $q->whereHas('user', fn ($uq) => $uq->whereRaw("name like ? escape '!'", [$term])
+                    ->orWhereRaw("email like ? escape '!'", [$term]))
+                    ->orWhereHas('space', fn ($sq) => $sq->whereRaw("name like ? escape '!'", [$term]));
             });
         }
 
@@ -76,6 +97,10 @@ class AdminBookingController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'string', Rule::in(Booking::ALL_STATUSES)],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'status.required' => 'O novo status da reserva é obrigatório.',
+            'status.in' => 'Status da reserva inválido.',
+            'notes.max' => 'As observações não podem exceder 1000 caracteres.',
         ]);
 
         $booking = $this->bookingService->updateStatus($booking, $validated['status'], $validated['notes'] ?? null);

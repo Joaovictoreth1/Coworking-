@@ -50,7 +50,10 @@ export default function SpaceDetail({ id }: { id: number }) {
         publicSpacesApi
             .get(id)
             .then((data) => {
-                if (!cancelled) setSpace(data)
+                if (!cancelled) {
+                    setSpace(data)
+                    document.title = `${data.name} · Coworking Brasil`
+                }
             })
             .catch((err) => {
                 if (cancelled) return
@@ -93,7 +96,11 @@ export default function SpaceDetail({ id }: { id: number }) {
                 Todos os locais
             </a>
 
-            {loading && <p className="mt-10 text-slate-600">Carregando...</p>}
+            {loading && (
+                <p role="status" aria-live="polite" className="mt-10 text-slate-600">
+                    Carregando...
+                </p>
+            )}
 
             {error && (
                 <div className="mt-6">
@@ -103,7 +110,7 @@ export default function SpaceDetail({ id }: { id: number }) {
 
             {space && (
                 <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_22rem]">
-                    <div className="min-w-0 space-y-10">
+                    <article className="min-w-0 space-y-10">
                         <header>
                             <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
@@ -184,7 +191,10 @@ export default function SpaceDetail({ id }: { id: number }) {
                                 )}
                             </div>
                             {photos.length > 1 && (
-                                <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                                <ul
+                                    aria-label="Galeria de fotos do espaço"
+                                    className="mt-3 flex gap-2 overflow-x-auto pb-1"
+                                >
                                     {photos.map((photo, index) => (
                                         <li key={photo.id} className="shrink-0">
                                             <button
@@ -256,7 +266,7 @@ export default function SpaceDetail({ id }: { id: number }) {
                             ownerId={space.owner_id}
                             onSummaryChange={onSummaryChange}
                         />
-                    </div>
+                    </article>
 
                     <BookingWidget space={space} />
                 </div>

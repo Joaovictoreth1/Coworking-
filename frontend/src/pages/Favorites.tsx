@@ -62,7 +62,10 @@ export default function Favorites() {
                 Os espaços que você salvou, para voltar a eles rapidamente.
             </p>
 
-            <div className="mt-6">
+            <section aria-labelledby="favorites-list-heading" className="mt-6">
+                <h2 id="favorites-list-heading" className="sr-only">
+                    Lista de espaços favoritos
+                </h2>
                 {(error || favorites.error) && (
                     <div className="mb-4">
                         <Alert type="error" onClose={favorites.error ? favorites.clearError : undefined}>
@@ -97,10 +100,11 @@ export default function Favorites() {
                     </div>
                 ) : (
                     <>
-                        <p className="mb-4 text-sm text-slate-600">
+                        <p aria-live="polite" className="mb-4 text-sm text-slate-600">
                             {total} {total === 1 ? 'local salvo' : 'locais salvos'}
                         </p>
                         <ul
+                            aria-label="Espaços favoritos"
                             className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${
                                 loading ? 'opacity-60' : ''
                             }`}
@@ -113,7 +117,7 @@ export default function Favorites() {
                         </ul>
                     </>
                 )}
-            </div>
+            </section>
 
             {meta && meta.last_page > 1 && !error && (
                 <nav

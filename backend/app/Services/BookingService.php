@@ -74,6 +74,12 @@ class BookingService
                 ]);
             }
 
+            if (! $startTime->isSameDay($endTime)) {
+                throw ValidationException::withMessages([
+                    'end_time' => ['A reserva deve começar e terminar no mesmo dia dentro do horário de funcionamento.'],
+                ]);
+            }
+
             if (! empty($dayConfig['from']) && ! empty($dayConfig['to'])) {
                 $timeStartStr = $startTime->format('H:i');
                 $timeEndStr = $endTime->format('H:i');
@@ -140,6 +146,12 @@ class BookingService
             ]);
         }
 
+        if ($start->isPast()) {
+            throw ValidationException::withMessages([
+                'start_time' => ['O horário de início não pode ser no passado.'],
+            ]);
+        }
+
         $timezone = config('coworking.timezone');
         $this->validateWorkingHours($space, $start->setTimezone($timezone), $end->setTimezone($timezone));
         $this->validateNoOverlap($space, $start, $end);
@@ -184,7 +196,7 @@ class BookingService
             $locked = Booking::query()->findOrFail($booking->id);
             if (! $locked->canBeCancelledBy($user)) {
                 throw ValidationException::withMessages([
-                    'booking' => ['Esta reserva não pode ser cancelada ou você não possui permissão.'],
+                    'booking' => ['Esta reserva não pode mais ser cancelada.'],
                 ]);
             }
 
@@ -224,6 +236,7 @@ class BookingService
     public function getAdminMetrics(): array
     {
         $totalBookings = Booking::count();
+        $pendingBookings = Booking::where('status', Booking::STATUS_PENDING)->count();
         $confirmedBookings = Booking::where('status', Booking::STATUS_CONFIRMED)->count();
         $cancelledBookings = Booking::where('status', Booking::STATUS_CANCELLED)->count();
         $completedBookings = Booking::where('status', Booking::STATUS_COMPLETED)->count();
@@ -247,6 +260,7 @@ class BookingService
 
         return [
             'total_bookings' => $totalBookings,
+            'pending_bookings' => $pendingBookings,
             'confirmed_bookings' => $confirmedBookings,
             'cancelled_bookings' => $cancelledBookings,
             'completed_bookings' => $completedBookings,

@@ -33,6 +33,8 @@ class BookingController extends Controller
             'per_page' => ['sometimes', 'integer', 'between:1,100'],
             'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
             'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
+        ], [
+            'status.in' => 'Status de filtro inválido.',
         ]);
         $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
         $query = $this->authenticatedUser($request)
@@ -90,9 +92,14 @@ class BookingController extends Controller
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
         $user = $this->authenticatedUser($request);
-        $this->authorizeAccess($booking, $user);
+        $this->authorizeAccess($booking, $user, 'Você não tem permissão para cancelar esta reserva.');
 
-        $payload = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
+        $payload = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'reason.string' => 'O motivo do cancelamento deve ser um texto válido.',
+            'reason.max' => 'O motivo do cancelamento não pode exceder 500 caracteres.',
+        ]);
         $updated = $this->bookingService->cancelBooking($booking, $user, $payload['reason'] ?? null);
         $updated->load(['space', 'user']);
 
@@ -124,13 +131,13 @@ class BookingController extends Controller
                 'available' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
-                'message' => $e->getMessage(),
+                'message' => array_values($e->errors())[0][0] ?? $e->getMessage(),
             ], 422);
         }
     }
 
-    private function authorizeAccess(Booking $booking, User $user): void
+    private function authorizeAccess(Booking $booking, User $user, string $message = 'Acesso não autorizado a esta reserva.'): void
     {
-        abort_unless($user->isAdmin() || $booking->user_id === $user->id, 403, 'Acesso não autorizado a esta reserva.');
+        abort_unless($user->isAdmin() || $booking->user_id === $user->id, 403, $message);
     }
 }

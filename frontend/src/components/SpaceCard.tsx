@@ -15,7 +15,7 @@ export default function SpaceCard({
     const prices = priceList(space)
 
     return (
-        <div className="relative flex w-full">
+        <article className="relative flex w-full">
             <a
                 href={href('space-detail', space.id)}
                 className="group flex w-full flex-col overflow-hidden rounded-md border border-slate-200 bg-white transition hover:border-indigo-300 hover:bg-slate-50"
@@ -26,6 +26,7 @@ export default function SpaceCard({
                             src={space.cover_url}
                             alt=""
                             loading="lazy"
+                            decoding="async"
                             className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                         />
                     ) : (
@@ -76,21 +77,21 @@ export default function SpaceCard({
                     )}
 
                     {shownAmenities.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-1.5">
+                        <ul aria-label="Comodidades" className="mt-3 flex flex-wrap gap-1.5">
                             {shownAmenities.map((a) => (
-                                <span
+                                <li
                                     key={a}
                                     className="rounded bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700"
                                 >
                                     {amenityLabel(a)}
-                                </span>
+                                </li>
                             ))}
                             {extra > 0 && (
-                                <span className="rounded bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+                                <li className="rounded bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
                                     +{extra}
-                                </span>
+                                </li>
                             )}
-                        </div>
+                        </ul>
                     )}
 
                     <div className="mt-auto flex flex-wrap gap-x-3 gap-y-0.5 pt-4 text-sm">
@@ -116,6 +117,6 @@ export default function SpaceCard({
                     />
                 </div>
             )}
-        </div>
+        </article>
     )
 }
