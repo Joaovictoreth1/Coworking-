@@ -78,9 +78,9 @@ Route::middleware('auth.token')->prefix('admin')->group(function () {
     // Gerenciamento de Espaços
     Route::apiResource('spaces', SpaceController::class);
     Route::get('spaces/{space}/reservations', [ReservationController::class, 'forSpace'])->whereNumber('space');
-    Route::post('spaces/{space}/photos', [SpacePhotoController::class, 'store']);
-    Route::put('spaces/{space}/photos/order', [SpacePhotoController::class, 'reorder']);
-    Route::delete('spaces/{space}/photos/{photo}', [SpacePhotoController::class, 'destroy']);
+    Route::post('spaces/{space}/photos', [SpacePhotoController::class, 'store'])->whereNumber('space');
+    Route::put('spaces/{space}/photos/order', [SpacePhotoController::class, 'reorder'])->whereNumber('space');
+    Route::delete('spaces/{space}/photos/{photo}', [SpacePhotoController::class, 'destroy'])->whereNumber(['space', 'photo']);
 
     // Gestão de Reservas e Métricas do Sistema (exclusivo para administradores)
     Route::middleware('admin')->group(function () {

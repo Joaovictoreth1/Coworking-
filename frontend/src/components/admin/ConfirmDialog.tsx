@@ -5,6 +5,7 @@ import { secondaryButton } from '../../lib/ui'
 export interface ConfirmDialogProps {
     title: string
     message: string
+    error?: string
     confirmLabel?: string
     cancelLabel?: string
     busyLabel?: string
@@ -18,6 +19,7 @@ export interface ConfirmDialogProps {
 export default function ConfirmDialog({
     title,
     message,
+    error,
     confirmLabel = 'Excluir',
     cancelLabel = 'Cancelar',
     busyLabel = 'Processando...',
@@ -78,6 +80,15 @@ export default function ConfirmDialog({
                 <p id={descId} className="mt-2 text-sm text-slate-600">
                     {message}
                 </p>
+
+                {error && (
+                    <p
+                        role="alert"
+                        className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+                    >
+                        {error}
+                    </p>
+                )}
                 
                 <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                     <button

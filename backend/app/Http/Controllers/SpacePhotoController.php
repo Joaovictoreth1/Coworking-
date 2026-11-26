@@ -7,9 +7,11 @@ use App\Models\Space;
 use App\Models\SpacePhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class SpacePhotoController extends Controller
 {
@@ -42,22 +44,38 @@ class SpacePhotoController extends Controller
         ]);
 
         $files = $request->file('photos');
+        $storedPaths = [];
 
-        if ($space->photos()->count() + count($files) > Space::MAX_PHOTOS) {
-            throw ValidationException::withMessages([
-                'photos' => ['Cada local aceita no máximo '.Space::MAX_PHOTOS.' fotos.'],
-            ]);
-        }
+        try {
+            DB::transaction(function () use ($space, $files, &$storedPaths) {
+                $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
 
-        $position = $space->photos()->max('position');
-        $position = $position === null ? 0 : $position + 1;
+                if ($lockedSpace->photos()->count() + count($files) > Space::MAX_PHOTOS) {
+                    throw ValidationException::withMessages([
+                        'photos' => ['Cada local aceita no máximo '.Space::MAX_PHOTOS.' fotos.'],
+                    ]);
+                }
 
-        foreach ($files as $file) {
-            $space->photos()->create([
-                'path' => $file->store("spaces/{$space->id}", 'public'),
-                'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
-                'position' => $position++,
-            ]);
+                $position = $lockedSpace->photos()->max('position');
+                $position = $position === null ? 0 : $position + 1;
+
+                foreach ($files as $file) {
+                    $path = $file->store("spaces/{$lockedSpace->id}", 'public');
+                    $storedPaths[] = $path;
+
+                    $lockedSpace->photos()->create([
+                        'path' => $path,
+                        'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                        'position' => $position++,
+                    ]);
+                }
+            });
+        } catch (Throwable $e) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $e;
         }
 
         return (new SpaceResource($space->load('photos')))
@@ -71,14 +89,36 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
 
         $data = $request->validate([
-            'ids' => ['required', 'array', 'max:'.Space::MAX_PHOTOS],
-            'ids.*' => ['integer'],
+            'ids' => ['required', 'array', 'min:1', 'max:'.Space::MAX_PHOTOS],
+            'ids.*' => ['integer', 'distinct'],
+        ], [
+            'ids.required' => 'Informe a ordem das fotos.',
+            'ids.min' => 'Informe ao menos uma foto para reordenar.',
+            'ids.*.distinct' => 'Há fotos repetidas na ordenação.',
         ]);
 
-        // O filtro por space_id garante que ids de outros locais sejam ignorados.
-        foreach (array_values($data['ids']) as $position => $id) {
-            SpacePhoto::where('space_id', $space->id)->where('id', $id)->update(['position' => $position]);
-        }
+        $requestedIds = array_values(array_map('intval', $data['ids']));
+
+        DB::transaction(function () use ($space, $requestedIds) {
+            $existingIds = $space->photos()->lockForUpdate()->pluck('id')->map(fn ($id) => (int) $id)->all();
+            $invalidIds = array_diff($requestedIds, $existingIds);
+
+            if ($invalidIds !== []) {
+                throw ValidationException::withMessages([
+                    'ids' => ['Uma ou mais fotos informadas não pertencem a este local.'],
+                ]);
+            }
+
+            // Mantém eventuais fotos omitidas ordenadas após as informadas para evitar colisão de posição.
+            $remainingIds = array_values(array_diff($existingIds, $requestedIds));
+            $orderedIds = [...$requestedIds, ...$remainingIds];
+
+            foreach ($orderedIds as $position => $id) {
+                SpacePhoto::where('space_id', $space->id)
+                    ->where('id', $id)
+                    ->update(['position' => $position]);
+            }
+        });
 
         return new SpaceResource($space->load('photos'));
     }
@@ -88,8 +128,20 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
         abort_unless($photo->space_id === $space->id, 404);
 
-        Storage::disk('public')->delete($photo->path);
-        $photo->delete();
+        $path = $photo->path;
+
+        DB::transaction(function () use ($space, $photo) {
+            $photo->delete();
+
+            $remaining = $space->photos()->lockForUpdate()->pluck('id');
+            foreach ($remaining as $position => $id) {
+                SpacePhoto::where('space_id', $space->id)
+                    ->where('id', $id)
+                    ->update(['position' => $position]);
+            }
+        });
+
+        Storage::disk('public')->delete($path);
 
         return new SpaceResource($space->load('photos'));
     }

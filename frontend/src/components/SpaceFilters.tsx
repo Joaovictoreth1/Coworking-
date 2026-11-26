@@ -74,7 +74,7 @@ export default function SpaceFilters({ value, onChange, onClear }: SpaceFiltersP
     return (
         <section
             aria-labelledby="filters-heading"
-            className="rounded-md border border-slate-200 bg-white p-4"
+            className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs sm:p-5"
         >
             {/* Título invisível para leitores de tela melhorar a semântica da <section> */}
             <h2 id="filters-heading" className="sr-only">Filtros de busca</h2>

@@ -21,11 +21,13 @@ export default function PhotoManager({
     onChange,
     onRemove,
     error,
+    disabled = false,
 }: {
     photos: PhotoItem[]
     onChange: (next: PhotoItem[]) => void
     onRemove: (item: PhotoItem) => void
     error?: string
+    disabled?: boolean
 }) {
     const [notice, setNotice] = useState('')
 
@@ -98,7 +100,7 @@ export default function PhotoManager({
                                 <button
                                     type="button"
                                     aria-label="Mover para a esquerda"
-                                    disabled={index === 0}
+                                    disabled={disabled || index === 0}
                                     onClick={() => move(index, index - 1)}
                                     className={iconButton}
                                 >
@@ -107,7 +109,7 @@ export default function PhotoManager({
                                 <button
                                     type="button"
                                     aria-label="Mover para a direita"
-                                    disabled={index === photos.length - 1}
+                                    disabled={disabled || index === photos.length - 1}
                                     onClick={() => move(index, index + 1)}
                                     className={iconButton}
                                 >
@@ -117,7 +119,7 @@ export default function PhotoManager({
                                     type="button"
                                     aria-label="Definir como capa"
                                     title="Definir como capa"
-                                    disabled={index === 0}
+                                    disabled={disabled || index === 0}
                                     onClick={() => move(index, 0)}
                                     className={iconButton}
                                 >
@@ -127,6 +129,7 @@ export default function PhotoManager({
                             <button
                                 type="button"
                                 aria-label="Remover foto"
+                                disabled={disabled}
                                 onClick={() => onRemove(photo)}
                                 className={`${iconButton} hover:!bg-red-100 hover:!text-red-700`}
                             >
@@ -138,12 +141,19 @@ export default function PhotoManager({
 
                 {photos.length < MAX_PHOTOS && (
                     <li>
-                        <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-600 transition focus-within:border-indigo-500 hover:border-indigo-300 hover:bg-slate-100 hover:text-slate-800">
+                        <label
+                            className={`flex aspect-[4/3] flex-col items-center justify-center gap-2 rounded-md border border-dashed border-slate-300 text-sm text-slate-600 transition ${
+                                disabled
+                                    ? 'cursor-not-allowed opacity-50'
+                                    : 'cursor-pointer focus-within:border-indigo-500 hover:border-indigo-300 hover:bg-slate-100 hover:text-slate-800'
+                            }`}
+                        >
                             <UploadIcon className="h-6 w-6" />
                             <span>Adicionar fotos</span>
                             <input
                                 type="file"
                                 multiple
+                                disabled={disabled}
                                 accept={ACCEPTED.join(',')}
                                 onChange={handleFiles}
                                 className="sr-only"

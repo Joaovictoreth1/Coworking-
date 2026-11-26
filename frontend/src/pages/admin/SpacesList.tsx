@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from '../../auth/context'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { Alert } from '../../components/admin/FormControls'
 import ComponentBody from '../../components/ComponentBody'
@@ -34,6 +35,7 @@ const STATUS_OPTIONS = [
 ]
 
 export default function SpacesList() {
+    const { user } = useAuth()
     const [notice, setNotice] = useState<Flash | null>(peekFlash)
 
     const search = useUiStore((s) => s.adminSpaceSearch)
@@ -91,6 +93,7 @@ export default function SpacesList() {
             await deleteSpace.mutateAsync(toDelete.id)
             setToDelete(null)
             setNotice({ type: 'success', text: 'Local excluído.' })
+            // Se era o único da última página, volta uma página
             if (items.length === 1 && page > 1) setPage(page - 1)
         } catch (err) {
             setDeleteError(getErrorMessage(err, 'Não foi possível excluir o local.'))
@@ -112,10 +115,12 @@ export default function SpacesList() {
                             : 'Gerencie os espaços disponíveis para locação.'}
                     </p>
                 </div>
-                <a href={href('space-new')} className={primaryButton}>
-                    <PlusIcon className="h-5 w-5" />
-                    Novo local
-                </a>
+                {user?.is_admin && (
+                    <a href={href('space-new')} className={primaryButton}>
+                        <PlusIcon className="h-5 w-5" />
+                        Novo local
+                    </a>
+                )}
             </div>
 
             {notice && (
@@ -179,7 +184,7 @@ export default function SpacesList() {
                                 ? 'Tente outro termo de busca ou mude o filtro de status.'
                                 : 'Cadastre o primeiro espaço para começar.'}
                         </p>
-                        {!filtering && (
+                        {!filtering && user?.is_admin && (
                             <a href={href('space-new')} className={`${primaryButton} mt-6`}>
                                 <PlusIcon className="h-5 w-5" />
                                 Cadastrar local
@@ -303,13 +308,14 @@ export default function SpacesList() {
             {toDelete && (
                 <ConfirmDialog
                     title="Excluir local?"
-                    message={
-                        deleteError ||
-                        `"${toDelete.name}" e todas as suas fotos serão removidos. Essa ação não pode ser desfeita.`
-                    }
+                    message={`"${toDelete.name}" e todas as suas fotos serão removidos. Essa ação não pode ser desfeita.`}
+                    error={deleteError || undefined}
                     busy={deleteSpace.isPending}
                     onConfirm={confirmDelete}
-                    onCancel={() => setToDelete(null)}
+                    onCancel={() => {
+                        setDeleteError('')
+                        setToDelete(null)
+                    }}
                 />
             )}
         </ComponentBody>

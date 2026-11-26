@@ -4,6 +4,7 @@ import { useAuth } from '../auth/context'
 import { getErrorMessage } from '../lib/api'
 import { useFavoriteToggle } from '../lib/favorites'
 import {
+    EMPTY_FILTERS,
     hasPriceFilter,
     publicSpacesApi,
     type Paginated,
@@ -89,6 +90,12 @@ export function useSpaceSearch() {
     )
     const favorites = useFavoriteToggle(applyFavorite)
 
+    const clearAll = useCallback(() => {
+        setSearch('')
+        setFilters(EMPTY_FILTERS)
+        setPage(1)
+    }, [setSearch, setFilters, setPage])
+
     const goToPage = useCallback(
         (next: number) => {
             setPage(next)
@@ -107,6 +114,9 @@ export function useSpaceSearch() {
         filters,
         setFilters,
         clearFilters,
+        clearAll,
+        refetch: query.refetch,
+        // paginação
         page,
         goToPage,
         items: query.data?.data ?? [],

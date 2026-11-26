@@ -1,5 +1,5 @@
 // Configuração central do site: navbar e footer leem daqui.
-export const APP_NAME = 'Meu App'
+export const APP_NAME = 'Coworking Brasil'
 
 export interface NavLink {
     label: string
@@ -8,16 +8,16 @@ export interface NavLink {
 }
 
 export const NAV_LINKS: NavLink[] = [
-    { label: 'Início', href: '#/' },
-    { label: 'Sobre', href: '#/sobre' },
-    { label: 'Contato', href: '#/contato' },
+    { label: 'Explorar espaços', href: '#/' },
+    { label: 'Minhas reservas', href: '#/minhas-reservas' },
+    { label: 'Meus favoritos', href: '#/favoritos' },
 ]
 
 export const NAV_DROPDOWN: { label: string; items: NavLink[] } = {
-    label: 'Recursos',
+    label: 'Conta',
     items: [
-        { label: 'Documentação', href: '#/docs', description: 'Guias e referência' },
-        { label: 'Tutoriais', href: '#/tutoriais', description: 'Passo a passo para começar' },
-        { label: 'Novidades', href: '#/novidades', description: 'O que mudou por aqui' },
+        { label: 'Entrar', href: '#/login', description: 'Acesse suas reservas e favoritos' },
+        { label: 'Criar conta', href: '#/cadastro', description: 'Cadastre-se gratuitamente em segundos' },
+        { label: 'Gerenciar locais', href: '#/admin/locais', description: 'Cadastre ou edite seus espaços' },
     ],
 }
