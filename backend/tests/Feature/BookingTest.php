@@ -544,4 +544,96 @@ class BookingTest extends TestCase
             ->assertStatus(404)
             ->assertJson(['message' => 'Recurso não encontrado.']);
     }
+
+    public function test_daily_availability_returns_window_and_only_active_bookings_without_pii(): void
+    {
+        $day = Carbon::now('America/Sao_Paulo')->addDays(2)->startOfDay();
+        $space = Space::factory()->create([
+            'is_active' => true,
+            'opening_hours' => [
+                ['day' => $day->dayOfWeek, 'enabled' => true, 'from' => '08:00', 'to' => '18:00'],
+            ],
+        ]);
+        $user = User::factory()->create();
+
+        Booking::factory()->create([
+            'user_id' => $user->id,
+            'space_id' => $space->id,
+            'start_time' => $day->copy()->setTime(9, 0)->utc(),
+            'end_time' => $day->copy()->setTime(11, 0)->utc(),
+            'status' => Booking::STATUS_CONFIRMED,
+            'notes' => 'Confidencial',
+        ]);
+
+        Booking::factory()->create([
+            'user_id' => $user->id,
+            'space_id' => $space->id,
+            'start_time' => $day->copy()->setTime(14, 0)->utc(),
+            'end_time' => $day->copy()->setTime(16, 0)->utc(),
+            'status' => Booking::STATUS_CANCELLED,
+        ]);
+
+        $response = $this->getJson("/api/spaces/{$space->id}/bookings/availability?date={$day->format('Y-m-d')}");
+
+        $response->assertOk()
+            ->assertJson([
+                'date' => $day->format('Y-m-d'),
+                'open' => true,
+                'window' => ['from' => '08:00', 'to' => '18:00'],
+            ])
+            ->assertJsonCount(1, 'busy');
+
+        $busyItem = $response->json('busy.0');
+        $this->assertArrayHasKey('start_time', $busyItem);
+        $this->assertArrayHasKey('end_time', $busyItem);
+        $this->assertArrayNotHasKey('user_id', $busyItem);
+        $this->assertArrayNotHasKey('notes', $busyItem);
+    }
+
+    public function test_daily_availability_reports_closed_day_and_validates_date(): void
+    {
+        $day = Carbon::now('America/Sao_Paulo')->addDays(3)->startOfDay();
+        $space = Space::factory()->create([
+            'is_active' => true,
+            'opening_hours' => [
+                ['day' => $day->dayOfWeek, 'enabled' => false, 'from' => '08:00', 'to' => '18:00'],
+            ],
+        ]);
+        $inactive = Space::factory()->create(['is_active' => false]);
+
+        $this->getJson("/api/spaces/{$space->id}/bookings/availability?date={$day->format('Y-m-d')}")
+            ->assertOk()
+            ->assertJson([
+                'open' => false,
+                'window' => null,
+                'busy' => [],
+            ]);
+
+        $this->getJson("/api/spaces/{$space->id}/bookings/availability?date=invalid-date")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['date']);
+
+        $this->getJson("/api/spaces/{$inactive->id}/bookings/availability?date={$day->format('Y-m-d')}")
+            ->assertStatus(404);
+    }
+
+    public function test_api_responses_include_security_headers_and_request_id(): void
+    {
+        $response = $this->withHeader('X-Request-ID', 'trace-abc-123')
+            ->getJson('/api/spaces');
+
+        $response->assertOk()
+            ->assertHeader('X-Request-ID', 'trace-abc-123')
+            ->assertHeader('X-Content-Type-Options', 'nosniff')
+            ->assertHeader('X-Frame-Options', 'DENY')
+            ->assertHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+        $sanitized = $this->withHeader('X-Request-ID', 'invalid header with spaces!')
+            ->getJson('/api/spaces');
+
+        $sanitized->assertOk();
+        $generatedId = $sanitized->headers->get('X-Request-ID');
+        $this->assertNotNull($generatedId);
+        $this->assertNotSame('invalid header with spaces!', $generatedId);
+    }
 }

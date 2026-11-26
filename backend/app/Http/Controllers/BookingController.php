@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers;
 
 use App\Exceptions\BookingConflictException;
+use App\Http\Requests\BookingAvailabilityRequest;
 use App\Http\Requests\CancelBookingRequest;
 use App\Http\Requests\PreviewBookingRequest;
 use App\Http\Requests\StoreBookingRequest;
@@ -151,5 +152,17 @@ class BookingController extends Controller
                 'message' => $firstMessage,
             ], 422);
         }
+    }
+
+    /**
+     * Retorna a janela de funcionamento e os horários ocupados de um espaço em uma data (sem PII).
+     */
+    public function availability(BookingAvailabilityRequest $request, Space $space): JsonResponse
+    {
+        abort_unless($space->is_active, 404);
+
+        return response()->json(
+            $this->bookingService->getDailyAvailability($space, (string) $request->validated('date'))
+        );
     }
 }

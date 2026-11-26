@@ -299,6 +299,66 @@ class BookingService
     }
 
     /**
+     * Retorna a janela de funcionamento e os intervalos já ocupados de um espaço em um dia.
+     *
+     * @return array{
+     *     date: string,
+     *     timezone: string,
+     *     open: bool,
+     *     window: array{from: string, to: string}|null,
+     *     busy: array<int, array{start_time: string, end_time: string}>
+     * }
+     */
+    public function getDailyAvailability(Space $space, string $date): array
+    {
+        $timezone = (string) config('coworking.timezone', config('app.timezone', 'UTC'));
+        $dayStart = Carbon::createFromFormat('Y-m-d', $date, $timezone)->startOfDay();
+        $dayEnd = $dayStart->copy()->addDay();
+
+        $open = true;
+        $window = null;
+        $schedule = $space->opening_hours;
+
+        if (is_array($schedule) && ! empty($schedule)) {
+            foreach ($schedule as $item) {
+                if (isset($item['day']) && (int) $item['day'] === $dayStart->dayOfWeek) {
+                    if (empty($item['enabled'])) {
+                        $open = false;
+                    } elseif (! empty($item['from']) && ! empty($item['to'])) {
+                        $window = [
+                            'from' => (string) $item['from'],
+                            'to' => (string) $item['to'],
+                        ];
+                    }
+                    break;
+                }
+            }
+        }
+
+        $busy = Booking::query()
+            ->where('space_id', $space->id)
+            ->active()
+            ->where('start_time', '<', $dayEnd->copy()->utc())
+            ->where('end_time', '>', $dayStart->copy()->utc())
+            ->orderBy('start_time')
+            ->get(['start_time', 'end_time'])
+            ->map(fn (Booking $booking): array => [
+                'start_time' => $booking->start_time->toIso8601String(),
+                'end_time' => $booking->end_time->toIso8601String(),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'date' => $date,
+            'timezone' => $timezone,
+            'open' => $open,
+            'window' => $window,
+            'busy' => $busy,
+        ];
+    }
+
+    /**
      * Retorna métricas consolidadas para o Dashboard do Administrador.
      */
     public function getAdminMetrics(): array
