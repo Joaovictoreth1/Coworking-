@@ -103,8 +103,10 @@ php artisan key:generate
 touch database/database.sqlite
 php artisan migrate --seed
 php artisan storage:link
-php artisan serve --host=0.0.0.0 --port=8000
+php artisan serve --host=127.0.0.1 --port=8000
 ```
+
+> O seed cria contas de demonstração com senhas públicas, por isso a API escuta só em `127.0.0.1`. O emulador Android acessa o host por `10.0.2.2`. Use `--host=0.0.0.0` apenas em rede confiável e nunca com o seed em ambiente exposto.
 
 **Frontend**
 
