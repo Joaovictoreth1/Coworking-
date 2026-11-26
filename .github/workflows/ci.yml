@@ -1,75 +1,19 @@
-name: CI — Continuous Integration
+name: CI
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  backend-test:
-    name: Backend (PHP 8.4 & Laravel)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up PHP 8.4
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.4'
-          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3, bcmath
-          coverage: none
-
-      - name: Cache Composer dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.composer/cache
-          key: ${{ runner.os }}-composer-${{ hashFiles('backend/composer.json') }}
-          restore-keys: ${{ runner.os }}-composer-
-
-      - name: Install Composer Dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
-
-      - name: Prepare Environment File
-        run: |
-          cp .env.example .env
-          php artisan key:generate
-
-      - name: Run Backend Tests
-        env:
-          DB_CONNECTION: sqlite
-          DB_DATABASE: ":memory:"
-        run: php artisan test --colors=always
-
-  frontend-build:
-    name: Frontend (React 19 & Vite)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Run Linter (ESLint)
-        run: npm run lint
-
-      - name: Run TypeScript & Production Build
-        run: npm run build
-
+  backend:
+    uses: ./.github/workflows/laravel.yml
+  frontend:
+    uses: ./.github/workflows/frontend.yml
+  mobile:
+    uses: ./.github/workflows/mobile.yml
+  docker:
+    uses: ./.github/workflows/docker.yml

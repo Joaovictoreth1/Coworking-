@@ -1,10 +1,7 @@
 name: Backend
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_call:
 
 permissions:
   contents: read
@@ -38,8 +35,8 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_mysql, bcmath, intl, zip, pcntl
-          coverage: none
+          extensions: pdo_mysql, pdo_sqlite, bcmath, intl, zip, pcntl
+          coverage: pcov
 
       - name: Cache Composer
         uses: actions/cache@v4
@@ -58,7 +55,18 @@ jobs:
 
       - name: Pint (code style)
         run: vendor/bin/pint --test
-        continue-on-error: true
+
+      - name: Larastan
+        run: vendor/bin/phpstan analyse --memory-limit=512M --no-progress
+
+      - name: Audit dependencies
+        run: composer audit --locked
+
+      - name: Booking service coverage (SQLite)
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: ":memory:"
+        run: php artisan test --coverage --min=90
 
       - name: Tests (MySQL)
         env:
