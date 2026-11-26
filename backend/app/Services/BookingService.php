@@ -8,13 +8,14 @@ use App\Models\Booking;
 use App\Models\Space;
 use App\Models\User;
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class BookingService
 {
+    public function __construct(private readonly SpaceSchedule $schedule) {}
+
     /**
      * Valida se não há sobreposição de horário (Double-Booking).
      *
@@ -26,12 +27,7 @@ class BookingService
         CarbonInterface $endTime,
         ?int $excludeBookingId = null
     ): void {
-        $overlapExists = Booking::query()
-            ->where('space_id', $space->id)
-            ->overlapping($startTime, $endTime, $excludeBookingId)
-            ->exists();
-
-        if ($overlapExists) {
+        if ($this->schedule->hasConflict($space, $startTime, $endTime, $excludeBookingId)) {
             throw ValidationException::withMessages([
                 'booking_conflict' => ['Este espaço já possui uma reserva no horário selecionado. Escolha outro intervalo.'],
                 'start_time' => ['Horário conflitante com outra reserva ativa.'],
@@ -143,37 +139,25 @@ class BookingService
      */
     public function createBooking(User $user, Space $space, array $data): Booking
     {
-        if (! $space->is_active) {
-            throw ValidationException::withMessages([
-                'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
-            ]);
-        }
+        $startTime = CarbonImmutable::parse($data['start_time']);
+        $endTime = CarbonImmutable::parse($data['end_time']);
 
-        $startTime = Carbon::parse($data['start_time']);
-        $endTime = Carbon::parse($data['end_time']);
+        return $this->schedule->withinLock($space->id, function (Space $space) use ($user, $startTime, $endTime, $data) {
+            if (! $space->is_active) {
+                throw ValidationException::withMessages([
+                    'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
+                ]);
+            }
 
-        // Valida funcionamento
-        $this->validateWorkingHours($space, $startTime, $endTime);
-
-        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $data) {
-            // Previne Race Condition com Lock Pessimista
-            DB::table('bookings')
-                ->where('space_id', $space->id)
-                ->where('status', '!=', Booking::STATUS_CANCELLED)
-                ->lockForUpdate()
-                ->get();
-
-            // Valida Double-Booking
+            $this->validateWorkingHours($space, $startTime, $endTime);
             $this->validateNoOverlap($space, $startTime, $endTime);
-
-            // Calcula preço
             $totalPrice = $this->calculateTotalPrice($space, $startTime, $endTime);
 
             return Booking::create([
                 'user_id' => $user->id,
                 'space_id' => $space->id,
-                'start_time' => $startTime,
-                'end_time' => $endTime,
+                'start_time' => $startTime->utc(),
+                'end_time' => $endTime->utc(),
                 'total_price' => $totalPrice,
                 'status' => $data['status'] ?? Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
@@ -188,20 +172,41 @@ class BookingService
      */
     public function cancelBooking(Booking $booking, User $user, ?string $reason = null): Booking
     {
-        if (! $booking->canBeCancelledBy($user)) {
-            throw ValidationException::withMessages([
-                'booking' => ['Esta reserva não pode ser cancelada ou você não possui permissão.'],
+        return $this->schedule->withinLock($booking->space_id, function () use ($booking, $user, $reason) {
+            $locked = Booking::query()->findOrFail($booking->id);
+            if (! $locked->canBeCancelledBy($user)) {
+                throw ValidationException::withMessages([
+                    'booking' => ['Esta reserva não pode ser cancelada ou você não possui permissão.'],
+                ]);
+            }
+
+            $locked->update([
+                'status' => Booking::STATUS_CANCELLED,
+                'notes' => $reason
+                    ? ($locked->notes ? "{$locked->notes} | Cancelamento: {$reason}" : "Cancelamento: {$reason}")
+                    : $locked->notes,
             ]);
-        }
 
-        $booking->update([
-            'status' => Booking::STATUS_CANCELLED,
-            'notes' => $reason
-                ? ($booking->notes ? "{$booking->notes} | Cancelamento: {$reason}" : "Cancelamento: {$reason}")
-                : $booking->notes,
-        ]);
+            return $locked;
+        });
+    }
 
-        return $booking;
+    public function updateStatus(Booking $booking, string $status, ?string $notes): Booking
+    {
+        return $this->schedule->withinLock($booking->space_id, function (Space $space) use ($booking, $status, $notes) {
+            $locked = Booking::query()->findOrFail($booking->id);
+
+            if ($locked->status === Booking::STATUS_CANCELLED && $status !== Booking::STATUS_CANCELLED) {
+                $this->validateNoOverlap($space, $locked->start_time, $locked->end_time, $locked->id);
+            }
+
+            $locked->update([
+                'status' => $status,
+                'notes' => $notes ?? $locked->notes,
+            ]);
+
+            return $locked;
+        });
     }
 
     /**

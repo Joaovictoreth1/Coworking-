@@ -66,11 +66,7 @@ class AdminBookingController extends Controller
             'notes' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $booking->update([
-            'status' => $validated['status'],
-            'notes' => $validated['notes'] ?? $booking->notes,
-        ]);
-
+        $booking = $this->bookingService->updateStatus($booking, $validated['status'], $validated['notes'] ?? null);
         $booking->load(['space', 'user']);
 
         return response()->json([

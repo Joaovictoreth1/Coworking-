@@ -7,6 +7,7 @@ use App\Http\Resources\ReservationResource;
 use App\Models\Reservation;
 use App\Models\Space;
 use App\Services\ReservationService;
+use App\Services\SpaceSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,9 +15,10 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ReservationController extends Controller
 {
-    public function __construct(private readonly ReservationService $reservations)
-    {
-    }
+    public function __construct(
+        private readonly ReservationService $reservations,
+        private readonly SpaceSchedule $schedule,
+    ) {}
 
     /** Minhas reservas. Filtros opcionais: ?scope=upcoming|past e ?status=confirmed|cancelled. */
     public function index(Request $request): AnonymousResourceCollection
@@ -94,10 +96,7 @@ class ReservationController extends Controller
                 'from' => sprintf('%02d:%02d', intdiv($window[0], 60), $window[0] % 60),
                 'to' => sprintf('%02d:%02d', intdiv($window[1], 60) % 24, $window[1] % 60),
             ] : null,
-            'busy' => $this->reservations->busyOn($space, $day)->map(fn (Reservation $r) => [
-                'starts_at' => $r->starts_at->toIso8601String(),
-                'ends_at' => $r->ends_at->toIso8601String(),
-            ])->values(),
+            'busy' => $this->schedule->busyOn($space, $day),
         ]);
     }
 
