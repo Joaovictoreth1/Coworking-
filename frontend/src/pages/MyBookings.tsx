@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ComponentBody from '../components/ComponentBody'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
+import { ApiError } from '../lib/api'
 import { href } from '../lib/route'
 import { formatBRL, type Booking } from '../lib/spaces'
 import { primaryButton, secondaryButton } from '../lib/ui'
@@ -80,7 +81,13 @@ export default function MyBookings() {
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
-    const { data: bookings, isLoading, error } = useUserBookingsQuery(selectedTab || undefined)
+    const {
+        data: bookings,
+        isLoading,
+        error,
+        refetch,
+        isFetching,
+    } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
@@ -140,11 +147,24 @@ export default function MyBookings() {
                             <BookingCardSkeleton />
                         </>
                     ) : error ? (
-                        <div className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6">
+                        <div
+                            role="alert"
+                            className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3"
+                        >
                             <p className="text-rose-700 font-semibold">
                                 Não foi possível carregar suas reservas.
                             </p>
-                            <p className="text-xs text-rose-500 mt-1">Tente novamente mais tarde.</p>
+                            <p className="text-xs text-rose-600">
+                                {error instanceof ApiError ? error.message : 'Tente novamente mais tarde.'}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() => refetch()}
+                                disabled={isFetching}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
+                            >
+                                {isFetching ? 'Recarregando...' : 'Tentar novamente'}
+                            </button>
                         </div>
                     ) : !bookings || bookings.length === 0 ? (
                         <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm">

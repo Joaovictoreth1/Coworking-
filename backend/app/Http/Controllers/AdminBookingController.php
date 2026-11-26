@@ -10,6 +10,7 @@ use App\Services\BookingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminBookingController extends Controller
@@ -23,35 +24,47 @@ class AdminBookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(Booking::ALL_STATUSES)],
+            'space_id' => ['nullable', 'integer', 'min:1'],
+            'from_date' => ['nullable', 'date'],
+            'to_date' => ['nullable', 'date'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ], [
+            'status.in' => 'Status de filtro inválido.',
+        ]);
+
         $query = Booking::query()
             ->with(['space', 'user'])
             ->latest('start_time');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        if (! empty($validated['status'])) {
+            $query->where('status', $validated['status']);
         }
 
-        if ($request->filled('space_id')) {
-            $query->where('space_id', (int) $request->query('space_id'));
+        if (! empty($validated['space_id'])) {
+            $query->where('space_id', (int) $validated['space_id']);
         }
 
-        if ($request->filled('from_date')) {
-            $query->whereDate('start_time', '>=', $request->query('from_date'));
+        if (! empty($validated['from_date'])) {
+            $query->whereDate('start_time', '>=', $validated['from_date']);
         }
 
-        if ($request->filled('to_date')) {
-            $query->whereDate('end_time', '<=', $request->query('to_date'));
+        if (! empty($validated['to_date'])) {
+            $query->whereDate('end_time', '<=', $validated['to_date']);
         }
 
-        if ($request->filled('search')) {
-            $term = '%' . $request->query('search') . '%';
+        if (! empty($validated['search'])) {
+            $term = '%' . addcslashes(trim($validated['search']), '%_\\') . '%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
                   ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 20));
+        $perPage = (int) ($validated['per_page'] ?? 20);
+        $bookings = $query->paginate($perPage);
 
         return BookingResource::collection($bookings);
     }
@@ -64,12 +77,37 @@ class AdminBookingController extends Controller
         $validated = $request->validate([
             'status' => ['required', 'string', Rule::in(Booking::ALL_STATUSES)],
             'notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'status.required' => 'O novo status da reserva é obrigatório.',
+            'status.in' => 'Status da reserva inválido.',
+            'notes.max' => 'As observações não podem exceder 1000 caracteres.',
         ]);
 
-        $booking->update([
-            'status' => $validated['status'],
-            'notes' => $validated['notes'] ?? $booking->notes,
-        ]);
+        $newStatus = $validated['status'];
+        $isReactivating = $booking->status === Booking::STATUS_CANCELLED
+            && in_array($newStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true);
+
+        DB::transaction(function () use ($booking, $validated, $newStatus, $isReactivating) {
+            if ($isReactivating) {
+                DB::table('bookings')
+                    ->where('space_id', $booking->space_id)
+                    ->where('status', '!=', Booking::STATUS_CANCELLED)
+                    ->lockForUpdate()
+                    ->get();
+
+                $this->bookingService->validateNoOverlap(
+                    $booking->space,
+                    $booking->start_time,
+                    $booking->end_time,
+                    $booking->id
+                );
+            }
+
+            $booking->update([
+                'status' => $newStatus,
+                'notes' => $validated['notes'] ?? $booking->notes,
+            ]);
+        });
 
         $booking->load(['space', 'user']);
 
