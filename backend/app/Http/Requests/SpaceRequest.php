@@ -2,14 +2,24 @@
 
 namespace App\Http\Requests;
 
-use Illuminate\Contracts\Validation\Validator;
+use App\Models\Space;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Validator;
 
 class SpaceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() ?? false;
+        $user = $this->user();
+        $space = $this->route('space');
+
+        if ($user !== null && $space instanceof Space) {
+            abort_unless($space->manageableBy($user), 404);
+
+            return true;
+        }
+
+        return $user?->isAdmin() ?? false;
     }
 
     protected function prepareForValidation(): void
@@ -24,6 +34,7 @@ class SpaceRequest extends FormRequest
         }
     }
 
+    /** @return array<string, list<mixed>> */
     public function rules(): array
     {
         return [
@@ -54,6 +65,7 @@ class SpaceRequest extends FormRequest
         ];
     }
 
+    /** @return array<string, list<string>> */
     private function scheduleRules(string $field): array
     {
         // Horários (from/to) só são exigidos nos dias marcados: isso é conferido em after().
@@ -66,6 +78,7 @@ class SpaceRequest extends FormRequest
         ];
     }
 
+    /** @return list<\Closure(Validator): void> */
     public function after(): array
     {
         return [

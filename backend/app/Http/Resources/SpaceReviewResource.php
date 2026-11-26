@@ -2,13 +2,16 @@
 
 namespace App\Http\Resources;
 
+use App\Models\SpaceReview;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
 
-/** @mixin \App\Models\SpaceReview */
+/** @mixin SpaceReview */
 class SpaceReviewResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $viewer = $request->user();
@@ -17,7 +20,7 @@ class SpaceReviewResource extends JsonResource
             'id' => $this->id,
             'rating' => $this->rating,
             'comment' => $this->comment,
-            'author' => $this->whenLoaded('user', fn () => $this->abbreviatedName($this->user->name)),
+            'author' => $this->whenLoaded('user', fn (User $user) => $this->abbreviatedName($user->name)),
             'is_mine' => $viewer !== null && $viewer->id === $this->user_id,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),

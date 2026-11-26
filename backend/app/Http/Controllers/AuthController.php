@@ -44,13 +44,13 @@ class AuthController extends Controller
     public function me(Request $request): JsonResponse
     {
         return response()->json([
-            'user' => new UserResource($request->user())
+            'user' => new UserResource($request->user()),
         ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        // Mantive sua lógica original, mas se estiver usando o Laravel Sanctum padrão, 
+        // Mantive sua lógica original, mas se estiver usando o Laravel Sanctum padrão,
         // o ideal seria: $request->user()->currentAccessToken()->delete();
         $request->attributes->get('api_token')?->delete();
 

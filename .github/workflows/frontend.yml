@@ -1,12 +1,7 @@
 name: Frontend
 
 on:
-  push:
-    branches: [ "main" ]
-    paths: [ "frontend/**" ]
-  pull_request:
-    branches: [ "main" ]
-    paths: [ "frontend/**" ]
+  workflow_call:
 
 permissions:
   contents: read
@@ -25,7 +20,8 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      # Há erros de lint antigos (react-hooks); por enquanto informativo, o build/tsc é bloqueante.
+      - run: npm audit --audit-level=moderate
       - run: npm run lint
-        continue-on-error: true
+      - run: npm run typecheck
+      - run: npm test
       - run: npm run build

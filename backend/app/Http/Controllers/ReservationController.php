@@ -7,6 +7,7 @@ use App\Http\Resources\ReservationResource;
 use App\Models\Reservation;
 use App\Models\Space;
 use App\Services\ReservationService;
+use App\Services\SpaceSchedule;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,9 +15,10 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class ReservationController extends Controller
 {
-    public function __construct(private readonly ReservationService $reservations)
-    {
-    }
+    public function __construct(
+        private readonly ReservationService $reservations,
+        private readonly SpaceSchedule $schedule,
+    ) {}
 
     /** Minhas reservas. Filtros opcionais: ?scope=upcoming|past e ?status=confirmed|cancelled. */
     public function index(Request $request): AnonymousResourceCollection
@@ -24,16 +26,22 @@ class ReservationController extends Controller
         $data = $request->validate([
             'scope' => ['nullable', 'in:upcoming,past'],
             'status' => ['nullable', 'in:confirmed,cancelled'],
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'sort' => ['sometimes', 'in:start_asc,start_desc'],
         ]);
         $scope = $data['scope'] ?? null;
+        $sort = $data['sort'] ?? ($scope === 'upcoming' ? 'start_asc' : 'start_desc');
+        $direction = $sort === 'start_asc' ? 'asc' : 'desc';
 
-        $list = $request->user()->reservations()
+        $list = $this->authenticatedUser($request)->reservations()
             ->with('space:id,name') // evita N+1 ao listar
             ->when($data['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($scope === 'upcoming', fn ($q) => $q->where('ends_at', '>', now())->orderBy('starts_at'))
-            ->when($scope === 'past', fn ($q) => $q->where('ends_at', '<=', now())->orderByDesc('starts_at'))
-            ->when($scope === null, fn ($q) => $q->orderByDesc('starts_at'))
-            ->paginate(15)
+            ->when($scope === 'upcoming', fn ($q) => $q->where('ends_at', '>', now()))
+            ->when($scope === 'past', fn ($q) => $q->where('ends_at', '<=', now()))
+            ->orderBy('starts_at', $direction)
+            ->orderBy('id', $direction)
+            ->paginate((int) ($data['per_page'] ?? 15))
             ->withQueryString();
 
         return ReservationResource::collection($list);
@@ -43,7 +51,7 @@ class ReservationController extends Controller
     {
         $reservation = $this->reservations->create(
             $space,
-            $request->user(),
+            $this->authenticatedUser($request),
             $request->validated('rate'),
             $request->startsAt(),
             $request->endsAt(),
@@ -57,7 +65,7 @@ class ReservationController extends Controller
 
     public function destroy(Request $request, Reservation $reservation): JsonResponse
     {
-        $user = $request->user();
+        $user = $this->authenticatedUser($request);
         $space = $reservation->space()->first();
 
         // 404 (e não 403) para não revelar a existência de reservas alheias.
@@ -83,7 +91,7 @@ class ReservationController extends Controller
             'date.date_format' => 'Informe a data no formato AAAA-MM-DD.',
         ]);
 
-        $day = CarbonImmutable::createFromFormat('Y-m-d', $data['date'], config('coworking.timezone'))->startOfDay();
+        $day = CarbonImmutable::parse($data['date'], config('coworking.timezone'))->startOfDay();
         $window = $this->reservations->windowFor($space, $day->dayOfWeek);
 
         return response()->json([
@@ -94,17 +102,15 @@ class ReservationController extends Controller
                 'from' => sprintf('%02d:%02d', intdiv($window[0], 60), $window[0] % 60),
                 'to' => sprintf('%02d:%02d', intdiv($window[1], 60) % 24, $window[1] % 60),
             ] : null,
-            'busy' => $this->reservations->busyOn($space, $day)->map(fn (Reservation $r) => [
-                'starts_at' => $r->starts_at->toIso8601String(),
-                'ends_at' => $r->ends_at->toIso8601String(),
-            ])->values(),
+            'busy' => $this->schedule->busyOn($space, $day),
         ]);
     }
 
     /** Painel: reservas de um local (somente gestor ou admin). */
     public function forSpace(Request $request, Space $space): AnonymousResourceCollection
     {
-        abort_unless($space->manageableBy($request->user()), 404);
+        abort_unless($space->manageableBy($this->authenticatedUser($request)), 404);
+        $request->validate(['page' => ['sometimes', 'integer', 'between:1,100000']]);
 
         return ReservationResource::collection(
             $space->reservations()->with('user:id,name')->orderByDesc('starts_at')->paginate(20)

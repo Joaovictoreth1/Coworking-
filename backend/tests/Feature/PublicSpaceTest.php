@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature;
 
 use App\Models\Space;
-use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -104,4 +103,3 @@ class PublicSpaceTest extends TestCase
         $response->assertStatus(404);
     }
 }
-

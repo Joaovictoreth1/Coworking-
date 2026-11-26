@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Booking;
 use App\Models\Reservation;
 use App\Models\Space;
 use App\Models\User;
@@ -16,6 +17,18 @@ class ReservationTest extends TestCase
     use RefreshDatabase;
 
     private Space $space;
+
+    public function test_reservation_rejects_unpriced_rates_and_advance_limit(): void
+    {
+        $user = User::factory()->create();
+        $this->space->update(['daily_price' => null]);
+        $this->book($user, ['rate' => 'daily', 'starts_at' => '2026-11-10', 'ends_at' => '2026-11-10'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Este local não aceita reservas nesta modalidade.');
+        $this->book($user, $this->hourly(day: '2027-06-01'))
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Só é possível reservar com até 180 dias de antecedência.');
+    }
 
     protected function setUp(): void
     {
@@ -68,6 +81,54 @@ class ReservationTest extends TestCase
         $this->book(User::factory()->create(), $this->hourly('10:00', '12:00'))->assertCreated();
         $this->book(User::factory()->create(), $this->hourly('12:00', '13:00'))->assertCreated();
         $this->book(User::factory()->create(), $this->hourly('09:00', '10:00'))->assertCreated();
+    }
+
+    public function test_booking_blocks_reservation_and_appears_in_availability(): void
+    {
+        $booking = Booking::factory()->for($this->space)->create([
+            'start_time' => '2026-11-10 13:00:00',
+            'end_time' => '2026-11-10 15:00:00',
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+
+        $this->book(User::factory()->create(), $this->hourly())->assertConflict();
+        $this->assertDatabaseCount('reservations', 0);
+
+        $this->getJson("/api/spaces/{$this->space->id}/availability?date=2026-11-10")
+            ->assertOk()
+            ->assertJsonPath('busy.0.starts_at', $booking->start_time->toIso8601String())
+            ->assertJsonPath('busy.0.ends_at', $booking->end_time->toIso8601String());
+
+        $this->book(User::factory()->create(), $this->hourly('12:00', '13:00'))->assertCreated();
+    }
+
+    public function test_reservation_blocks_booking_preview_creation_and_reactivation(): void
+    {
+        $user = User::factory()->create();
+        $this->book($user, $this->hourly())->assertCreated();
+        $bookingUrl = "/api/spaces/{$this->space->id}/bookings";
+        $period = [
+            'start_time' => '2026-11-10T15:30:00+02:00',
+            'end_time' => '2026-11-10T16:30:00+02:00',
+        ];
+
+        $this->postJson("{$bookingUrl}/preview", $period)->assertUnprocessable()
+            ->assertJsonValidationErrors(['booking_conflict']);
+        $this->postJson($bookingUrl, $period)->assertUnprocessable()
+            ->assertJsonValidationErrors(['booking_conflict']);
+        $this->assertDatabaseCount('bookings', 0);
+
+        $cancelled = Booking::factory()->for($this->space)->create([
+            'start_time' => '2026-11-10 13:00:00',
+            'end_time' => '2026-11-10 15:00:00',
+            'status' => Booking::STATUS_CANCELLED,
+        ]);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->withToken($admin->createApiToken('admin-test'))
+            ->patchJson("/api/admin/bookings/{$cancelled->id}/status", ['status' => Booking::STATUS_CONFIRMED])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['booking_conflict']);
+        $this->assertSame(Booking::STATUS_CANCELLED, $cancelled->refresh()->status);
     }
 
     public function test_cancelled_slot_can_be_booked_again(): void

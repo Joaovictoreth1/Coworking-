@@ -36,6 +36,7 @@ export interface Space {
     owner_id: number
     opening_hours: DaySchedule[]
     availability: DaySchedule[]
+    timezone: string
     amenities: string[]
     is_active: boolean
     owner?: { id: number; name: string } // só na listagem
@@ -57,6 +58,7 @@ export type SpacePayload = Omit<
     | 'rating_avg'
     | 'reviews_count'
     | 'is_favorite'
+    | 'timezone'
 >
 
 export interface Paginated<T> {
@@ -115,19 +117,20 @@ export const hasPriceFilter = (f: FilterState) =>
 export interface Booking {
     id: number
     space_id: number
-    space_name?: string
+    space_name: string | null
     user_id: number
-    user_name?: string
-    user_email?: string
+    user_name: string | null
+    user_email: string | null
     start_time: string
     end_time: string
+    timezone: string
     duration_hours: number
     total_price: number
     status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
-    voucher_code?: string
+    voucher_code: string
     notes: string | null
     can_cancel: boolean
-    created_at: string
+    created_at: string | null
     space?: {
         id: number
         name: string
@@ -137,6 +140,7 @@ export interface Booking {
         daily_price: number | null
         is_free: boolean
     }
+    user?: { id: number; name: string; email: string }
 }
 
 export interface AdminMetrics {

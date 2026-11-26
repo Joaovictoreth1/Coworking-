@@ -13,7 +13,8 @@ class FavoriteController extends Controller
     /** Locais favoritados pelo usuário logado (mais recentes primeiro). Só os ativos aparecem. */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $user = $request->user();
+        $request->validate(['page' => ['sometimes', 'integer', 'between:1,100000']]);
+        $user = $this->authenticatedUser($request);
 
         $spaces = $user->favoriteSpaces()
             ->with('photos')
@@ -31,14 +32,14 @@ class FavoriteController extends Controller
         abort_unless($space->is_active, 404);
 
         // Favoritar duas vezes não duplica (índice único + syncWithoutDetaching)
-        $request->user()->favoriteSpaces()->syncWithoutDetaching([$space->id]);
+        $this->authenticatedUser($request)->favoriteSpaces()->syncWithoutDetaching([$space->id]);
 
         return response()->json(['favorited' => true]);
     }
 
     public function destroy(Request $request, Space $space): JsonResponse
     {
-        $request->user()->favoriteSpaces()->detach($space->id);
+        $this->authenticatedUser($request)->favoriteSpaces()->detach($space->id);
 
         return response()->json(['favorited' => false]);
     }

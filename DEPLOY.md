@@ -11,7 +11,9 @@ Só o Caddy expõe portas (80/443); banco, Redis e a API ficam numa rede interna
 ```bash
 cp .env.production.example .env.production
 ```
-Edite `.env.production`: `SITE_ADDRESS`, `APP_URL`, `CORS_ALLOWED_ORIGINS`, senhas do banco.
+Edite `.env.production`: `SITE_ADDRESS`, `APP_URL` HTTPS, `CORS_ALLOWED_ORIGINS` se houver
+clientes web de outra origem e senhas distintas para o usuário da aplicação e root.
+Restrinja permissões do arquivo; não o versione.
 
 ```bash
 # 1. Build das imagens
@@ -29,15 +31,18 @@ docker compose --env-file .env.production -f docker-compose.prod.yml exec app \
 ```
 A senha gerada aparece uma única vez. Use `--password` (mín. 12 caracteres) para definir a sua.
 
-Para testar sem domínio: `SITE_ADDRESS=:80`, `APP_URL=http://localhost` e `CORS_ALLOWED_ORIGINS=http://localhost`.
+Para testar sem domínio, use o Compose de desenvolvimento. A configuração de produção
+rejeita URLs HTTP e curingas de CORS ou proxies na inicialização.
 
 ## Atualizar
 ```bash
 git pull
 docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
 ```
-As migrations rodam no start do container `app`. Ao escalar o `app` para mais de uma réplica, defina `RUN_MIGRATIONS=false`
-nas extras para não migrar em paralelo.
+Há apenas um executor de migrations. Com múltiplas réplicas, configure
+`RUN_MIGRATIONS=false` e execute `php artisan migrate --force` em um job único antes
+de liberar tráfego. Faça backup antes da mudança; para voltar, restaure a imagem anterior
+e só reverta o esquema se a versão anterior não for compatível.
 
 ## Backup (faça agendado, ex.: cron diário)
 ```bash

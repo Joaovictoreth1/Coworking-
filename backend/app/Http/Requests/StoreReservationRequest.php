@@ -14,6 +14,7 @@ class StoreReservationRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, list<mixed>> */
     public function rules(): array
     {
         return [

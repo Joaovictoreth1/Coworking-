@@ -2,13 +2,16 @@
 
 namespace App\Http\Resources;
 
+use App\Models\Space;
 use App\Models\SpacePhoto;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin \App\Models\Space */
+/** @mixin Space */
 class SpaceResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $photos = $this->relationLoaded('photos') ? $this->photos : collect();
@@ -39,10 +42,11 @@ class SpaceResource extends JsonResource
 
             'opening_hours' => $this->opening_hours ?? [],
             'availability' => $this->availability ?? [],
+            'timezone' => config('coworking.timezone'),
             'amenities' => $this->amenities ?? [],
             'is_active' => $this->is_active,
             'owner_id' => $this->user_id,
-            'owner' => $this->whenLoaded('user', fn () => ['id' => $this->user->id, 'name' => $this->user->name]),
+            'owner' => $this->whenLoaded('user', fn (User $user) => ['id' => $user->id, 'name' => $user->name]),
 
             'photos' => $photos
                 ->map(fn (SpacePhoto $photo) => [

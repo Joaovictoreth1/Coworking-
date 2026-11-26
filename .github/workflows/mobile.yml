@@ -1,12 +1,7 @@
 name: Mobile
 
 on:
-  push:
-    branches: [ "main" ]
-    paths: [ "mobile/**" ]
-  pull_request:
-    branches: [ "main" ]
-    paths: [ "mobile/**" ]
+  workflow_call:
 
 permissions:
   contents: read
@@ -22,7 +17,8 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
+          flutter-version: '3.50.1'
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
+      - run: flutter analyze
       - run: flutter test

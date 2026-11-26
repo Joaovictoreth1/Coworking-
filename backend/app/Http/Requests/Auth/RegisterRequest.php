@@ -30,6 +30,7 @@ class RegisterRequest extends FormRequest
         }
     }
 
+    /** @return array<string, list<mixed>> */
     public function rules(): array
     {
         return [
@@ -53,4 +54,3 @@ class RegisterRequest extends FormRequest
         ];
     }
 }
-

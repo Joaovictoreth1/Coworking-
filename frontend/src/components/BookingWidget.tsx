@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '../auth/context'
-import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import { isBookingConflict, useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
 import { ApiError } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
@@ -10,77 +10,66 @@ interface BookingWidgetProps {
     space: Space
 }
 
-function formatLocalDate(d: Date): string {
-    const year = d.getFullYear()
-    const month = String(d.getMonth() + 1).padStart(2, '0')
-    const day = String(d.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
-}
-
-function toLocalIsoWithOffset(date: string, time: string): string {
-    const local = new Date(`${date}T${time}:00`)
-    if (Number.isNaN(local.getTime())) return ''
-
-    const offsetMinutes = -local.getTimezoneOffset()
-    const sign = offsetMinutes >= 0 ? '+' : '-'
-    const abs = Math.abs(offsetMinutes)
-    const hh = String(Math.floor(abs / 60)).padStart(2, '0')
-    const mm = String(abs % 60).padStart(2, '0')
-    return `${date}T${time}:00${sign}${hh}:${mm}`
+function scheduleDateTime(timestamp: number, timeZone: string) {
+    const parts = new Intl.DateTimeFormat('en', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23',
+    }).formatToParts(timestamp)
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value
+    return `${part('year')}-${part('month')}-${part('day')}T${part('hour')}:${part('minute')}:${part('second')}`
 }
 
 export function BookingWidget({ space }: BookingWidgetProps) {
     const { user } = useAuth()
 
-    const todayDate = useMemo(() => formatLocalDate(new Date()), [])
-
-    // Data padrão: amanhã (no fuso local do usuário)
-    const defaultDate = useMemo(() => {
-        const d = new Date()
-        d.setDate(d.getDate() + 1)
-        return formatLocalDate(d)
-    }, [])
-
-    const [date, setDate] = useState<string>(defaultDate)
+    const [nowMs, setNowMs] = useState(() => Date.now())
+    const nowInSchedule = useMemo(() => scheduleDateTime(nowMs, space.timezone), [nowMs, space.timezone])
+    const todayDate = nowInSchedule.split('T')[0]
+    const [date, setDate] = useState(() => {
+        const tomorrow = new Date(`${todayDate}T00:00:00Z`)
+        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+        return tomorrow.toISOString().split('T')[0]
+    })
     const [startTime, setStartTime] = useState<string>('09:00')
     const [endTime, setEndTime] = useState<string>('13:00')
     const [notes, setNotes] = useState<string>('')
-    const [nowMs, setNowMs] = useState<number>(() => Date.now())
 
     useEffect(() => {
         const timer = window.setInterval(() => setNowMs(Date.now()), 30_000)
         return () => window.clearInterval(timer)
     }, [])
 
-    // Monta ISO string com fuso local para a API validar corretamente horário e passado
+    // A API interpreta horários sem offset no fuso do espaço.
     const startIso = useMemo(() => {
         if (!date || !startTime) return ''
-        return toLocalIsoWithOffset(date, startTime)
+        return `${date}T${startTime}:00`
     }, [date, startTime])
 
     const endIso = useMemo(() => {
         if (!date || !endTime) return ''
-        return toLocalIsoWithOffset(date, endTime)
+        return `${date}T${endTime}:00`
     }, [date, endTime])
 
     const hasCompleteInputs = Boolean(date && startTime && endTime && startIso && endIso)
     const isInvalidOrder = Boolean(startTime && endTime && startTime >= endTime)
-    const isPastDateTime = useMemo(() => {
-        if (!startIso) return false
-        return new Date(startIso).getTime() < nowMs
-    }, [startIso, nowMs])
+    const isPastDateTime = Boolean(startIso && startIso < nowInSchedule)
 
     const canPreview = space.is_active && hasCompleteInputs && !isInvalidOrder && !isPastDateTime
 
     // Consulta prévia e validação em tempo real de conflitos
     const {
         data: preview,
-        isLoading: isChecking,
+        isFetching: isChecking,
         error: previewError,
         refetch: refetchPreview,
     } = useBookingPreviewQuery(space.id, startIso, endIso, canPreview)
 
     const createBooking = useCreateBookingMutation(space.id)
+    const createConflict = isBookingConflict(createBooking.error)
+        && createBooking.variables?.start_time === startIso
+        && createBooking.variables?.end_time === endIso
+        ? createBooking.error
+        : null
 
     const localValidationError = !space.is_active
         ? 'Este espaço está temporariamente inativo para novas reservas.'
@@ -102,7 +91,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                   : 'Não foi possível verificar a disponibilidade do horário.'
               : null
 
-    const errorMessage = localValidationError ?? apiErrorMessage
+    const errorMessage = localValidationError ?? createConflict?.message ?? apiErrorMessage
     const isBlocked = Boolean(
         !space.is_active ||
             !hasCompleteInputs ||
@@ -110,12 +99,15 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             isPastDateTime ||
             isChecking ||
             createBooking.isPending ||
-            preview?.available === false ||
+            preview?.available !== true ||
+            createConflict ||
             previewError,
     )
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
+
+        if (!space.is_active) return
 
         if (!user) {
             navigate('login')
@@ -235,6 +227,10 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         className={inputClass(false, 'text-sm resize-none py-2')}
                     />
                 </div>
+
+                {space.is_active && !hasCompleteInputs && (
+                    <p className="text-xs text-slate-600">Selecione a data e os horários da reserva.</p>
+                )}
 
                 {/* Estado de Carregamento da Prévia */}
                 {canPreview && isChecking && (

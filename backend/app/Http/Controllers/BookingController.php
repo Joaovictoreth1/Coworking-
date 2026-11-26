@@ -8,8 +8,9 @@ use App\Http\Requests\StoreBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Space;
+use App\Models\User;
 use App\Services\BookingService;
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -27,24 +28,26 @@ class BookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $validated = $request->validate([
-            'status' => ['nullable', 'string', Rule::in(Booking::ALL_STATUSES)],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        $filters = $request->validate([
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
+            'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
         ], [
             'status.in' => 'Status de filtro inválido.',
         ]);
-
-        $query = $request->user()
+        $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
+        $query = $this->authenticatedUser($request)
             ->bookings()
             ->with(['space', 'user'])
-            ->latest('start_time');
+            ->orderBy('start_time', $direction)
+            ->orderBy('id', $direction);
 
-        if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        $perPage = (int) ($validated['per_page'] ?? 15);
-        $bookings = $query->paginate($perPage);
+        $bookings = $query->paginate((int) ($filters['per_page'] ?? 15))->withQueryString();
 
         return BookingResource::collection($bookings);
     }
@@ -55,9 +58,13 @@ class BookingController extends Controller
     public function store(StoreBookingRequest $request, Space $space): JsonResponse
     {
         $booking = $this->bookingService->createBooking(
-            $request->user(),
+            $this->authenticatedUser($request),
             $space,
-            $request->validated()
+            [
+                'start_time' => $request->validated('start_time'),
+                'end_time' => $request->validated('end_time'),
+                'notes' => $request->validated('notes'),
+            ]
         );
 
         $booking->load(['space', 'user']);
@@ -72,11 +79,7 @@ class BookingController extends Controller
      */
     public function show(Request $request, Booking $booking): BookingResource
     {
-        $user = $request->user();
-
-        if (! $user->isAdmin() && $booking->user_id !== $user->id) {
-            abort(403, 'Acesso não autorizado a esta reserva.');
-        }
+        $this->authorizeAccess($booking, $this->authenticatedUser($request));
 
         $booking->load(['space', 'user']);
 
@@ -88,15 +91,16 @@ class BookingController extends Controller
      */
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
-        $validated = $request->validate([
+        $user = $this->authenticatedUser($request);
+        $this->authorizeAccess($booking, $user, 'Você não tem permissão para cancelar esta reserva.');
+
+        $payload = $request->validate([
             'reason' => ['nullable', 'string', 'max:500'],
         ], [
             'reason.string' => 'O motivo do cancelamento deve ser um texto válido.',
             'reason.max' => 'O motivo do cancelamento não pode exceder 500 caracteres.',
         ]);
-
-        $reason = $validated['reason'] ?? null;
-        $updated = $this->bookingService->cancelBooking($booking, $request->user(), $reason);
+        $updated = $this->bookingService->cancelBooking($booking, $user, $payload['reason'] ?? null);
         $updated->load(['space', 'user']);
 
         return response()->json([
@@ -108,37 +112,13 @@ class BookingController extends Controller
     /**
      * Prévia em tempo real de disponibilidade e valor estimado.
      */
-    public function preview(Request $request, Space $space): JsonResponse
+    public function preview(StoreBookingRequest $request, Space $space): JsonResponse
     {
-        $validated = $request->validate([
-            'start_time' => ['required', 'date', 'after_or_equal:now'],
-            'end_time' => ['required', 'date', 'after:start_time'],
-        ], [
-            'start_time.required' => 'O horário de início da reserva é obrigatório.',
-            'start_time.date' => 'O horário de início deve ser uma data válida.',
-            'start_time.after_or_equal' => 'O horário de início não pode ser no passado.',
-            'end_time.required' => 'O horário de término da reserva é obrigatório.',
-            'end_time.date' => 'O horário de término deve ser uma data válida.',
-            'end_time.after' => 'O horário de término deve ser posterior ao horário de início.',
-        ]);
-
-        if (! $space->is_active) {
-            return response()->json([
-                'available' => false,
-                'total_price' => 0.00,
-                'errors' => ['space_id' => ['Este espaço está temporariamente inativo para reservas.']],
-                'message' => 'Este espaço está temporariamente inativo para reservas.',
-            ], 422);
-        }
-
-        $startTime = Carbon::parse($validated['start_time']);
-        $endTime = Carbon::parse($validated['end_time']);
+        $startTime = CarbonImmutable::parse($request->validated('start_time'));
+        $endTime = CarbonImmutable::parse($request->validated('end_time'));
 
         try {
-            $this->bookingService->validateNotInPast($startTime);
-            $this->bookingService->validateWorkingHours($space, $startTime, $endTime);
-            $this->bookingService->validateNoOverlap($space, $startTime, $endTime);
-            $price = $this->bookingService->calculateTotalPrice($space, $startTime, $endTime);
+            $price = $this->bookingService->quote($space, $startTime, $endTime);
 
             return response()->json([
                 'available' => true,
@@ -147,14 +127,17 @@ class BookingController extends Controller
                 'message' => 'Horário disponível para reserva.',
             ]);
         } catch (ValidationException $e) {
-            $firstMessage = collect($e->errors())->flatten()->first() ?? $e->getMessage();
-
             return response()->json([
                 'available' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
-                'message' => $firstMessage,
+                'message' => array_values($e->errors())[0][0] ?? $e->getMessage(),
             ], 422);
         }
+    }
+
+    private function authorizeAccess(Booking $booking, User $user, string $message = 'Acesso não autorizado a esta reserva.'): void
+    {
+        abort_unless($user->isAdmin() || $booking->user_id === $user->id, 403, $message);
     }
 }

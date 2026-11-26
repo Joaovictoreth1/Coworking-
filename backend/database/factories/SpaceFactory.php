@@ -19,7 +19,7 @@ class SpaceFactory extends Factory
     {
         return [
             'user_id' => User::factory(),
-            'name' => fake()->company() . ' Coworking',
+            'name' => fake()->company().' Coworking',
             'description' => fake()->paragraph(),
             'capacity' => fake()->numberBetween(5, 50),
             'zip_code' => '01310-200',
@@ -67,4 +67,3 @@ class SpaceFactory extends Factory
         ]);
     }
 }
-

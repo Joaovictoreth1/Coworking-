@@ -97,6 +97,53 @@ class AdminSpaceTest extends TestCase
             ]);
     }
 
+    public function test_global_booking_routes_require_administrator_role(): void
+    {
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_PENDING]);
+        $statusUrl = "/api/admin/bookings/{$booking->id}/status";
+        $statusPayload = ['status' => Booking::STATUS_CANCELLED];
+        $readUrls = ['/api/admin/bookings', '/api/admin/metrics', '/api/admin/dashboard'];
+
+        foreach ($readUrls as $url) {
+            $this->getJson($url)->assertUnauthorized();
+        }
+        $this->patchJson($statusUrl, $statusPayload)->assertUnauthorized();
+
+        $customer = User::factory()->create(['role' => User::ROLE_USER]);
+        $this->withToken($customer->createApiToken('customer-test'));
+        foreach ($readUrls as $url) {
+            $this->getJson($url)->assertForbidden();
+        }
+        $this->patchJson($statusUrl, $statusPayload)->assertForbidden();
+        $this->assertSame(Booking::STATUS_PENDING, $booking->refresh()->status);
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $this->withToken($admin->createApiToken('admin-test'));
+        foreach ($readUrls as $url) {
+            $this->getJson($url)->assertOk();
+        }
+        $this->patchJson($statusUrl, $statusPayload)->assertOk();
+    }
+
+    public function test_space_owner_access_is_not_restricted_to_administrators(): void
+    {
+        $owner = User::factory()->create(['role' => User::ROLE_USER]);
+        $space = Space::factory()->for($owner)->create();
+        $otherSpace = Space::factory()->create();
+
+        $this->withToken($owner->createApiToken('owner-test'))
+            ->getJson("/api/admin/spaces/{$space->id}")
+            ->assertOk();
+        $this->getJson("/api/admin/spaces/{$space->id}/reservations")->assertOk();
+        $this->getJson("/api/admin/spaces/{$otherSpace->id}")->assertNotFound();
+
+        $fields = $space->only(['street', 'city', 'state', 'hourly_price', 'opening_hours', 'availability', 'is_active']);
+        $fields['name'] = 'Sala reformada';
+        $this->putJson("/api/admin/spaces/{$space->id}", $fields)->assertOk();
+        $this->assertSame('Sala reformada', $space->refresh()->name);
+        $this->putJson("/api/admin/spaces/{$otherSpace->id}", $fields)->assertNotFound();
+    }
+
     public function test_admin_can_update_booking_status(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);

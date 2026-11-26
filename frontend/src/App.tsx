@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
-import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
+import { lazy, Suspense, useEffect, useState } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useAuth } from './auth/context'
 import { ToastContainer } from './components/Toast'
 import { navigate, useRoute, useRouteId, type Route } from './lib/route'
@@ -48,8 +48,6 @@ function FullScreenLoader({ label }: { label: string }) {
 
 function AppContent() {
     const { user, loading } = useAuth()
-    const queryClient = useQueryClient()
-    const prevUserIdRef = useRef<number | null | undefined>(undefined)
     const route = useRoute()
     const routeId = useRouteId()
 
@@ -60,16 +58,6 @@ function AppContent() {
     useEffect(() => {
         document.title = ROUTE_TITLES[route] ?? ROUTE_TITLES.home
     }, [route])
-
-    // Limpa o cache do React Query ao sair ou trocar de conta para evitar vazamento entre sessões
-    useEffect(() => {
-        if (loading) return
-        const currentUserId = user?.id ?? null
-        if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== currentUserId) {
-            queryClient.clear()
-        }
-        prevUserIdRef.current = currentUserId
-    }, [user, loading, queryClient])
 
     useEffect(() => {
         if (loading) return
@@ -105,6 +93,12 @@ function AppContent() {
 }
 
 export default function App() {
+    const { user } = useAuth()
+
+    return <SessionApp key={user?.id ?? 'guest'} />
+}
+
+function SessionApp() {
     const [queryClient] = useState(
         () =>
             new QueryClient({

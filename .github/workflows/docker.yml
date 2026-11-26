@@ -1,12 +1,7 @@
 name: Docker (produção)
 
 on:
-  pull_request:
-    branches: [ "main" ]
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - "docker-compose.prod.yml"
+  workflow_call:
 
 permissions:
   contents: read

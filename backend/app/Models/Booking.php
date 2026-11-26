@@ -10,15 +10,24 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $start_time
+ * @property Carbon $end_time
+ */
 class Booking extends Model
 {
+    /** @use HasFactory<BookingFactory> */
     /** @use HasFactory<BookingFactory> */
     use HasFactory;
 
     public const STATUS_PENDING = 'pending';
+
     public const STATUS_CONFIRMED = 'confirmed';
+
     public const STATUS_CANCELLED = 'cancelled';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const ALL_STATUSES = [
@@ -47,16 +56,22 @@ class Booking extends Model
         ];
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
+    /** @return BelongsTo<Space, $this> */
     public function space(): BelongsTo
     {
         return $this->belongsTo(Space::class);
     }
 
+    /**
+     * @param  Builder<Booking>  $query
+     * @return Builder<Booking>
+     */
     public function scopeActive(Builder $query): Builder
     {
         return $query->where('status', '!=', self::STATUS_CANCELLED);
@@ -65,6 +80,10 @@ class Booking extends Model
     /**
      * Verifica sobreposição de horário:
      * Uma reserva sobrepõe outra se [start_time < $end] E [end_time > $start].
+     */
+    /**
+     * @param  Builder<Booking>  $query
+     * @return Builder<Booking>
      */
     public function scopeOverlapping(
         Builder $query,
@@ -80,7 +99,8 @@ class Booking extends Model
 
     public function getVoucherCodeAttribute(): string
     {
-        $dateStr = $this->start_time ? $this->start_time->format('Ymd') : date('Ymd');
+        $dateStr = $this->start_time->format('Ymd');
+
         return sprintf('CWK-%s-%05d', $dateStr, $this->id);
     }
 

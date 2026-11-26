@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Booking;
+use App\Models\Space;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /** @mixin Booking */
 class BookingResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $currentUser = $request->user();
@@ -22,33 +25,32 @@ class BookingResource extends JsonResource
             'user_id' => $this->user_id,
             'user_name' => $this->user?->name,
             'user_email' => $this->user?->email,
-            'start_time' => $this->start_time?->toIso8601String(),
-            'end_time' => $this->end_time?->toIso8601String(),
-            'duration_hours' => $this->start_time && $this->end_time
-                ? (int) ceil($this->start_time->diffInMinutes($this->end_time) / 60)
-                : 0,
+            'start_time' => $this->start_time->toIso8601String(),
+            'end_time' => $this->end_time->toIso8601String(),
+            'timezone' => config('coworking.timezone'),
+            'duration_hours' => (int) ceil($this->start_time->diffInMinutes($this->end_time) / 60),
             'total_price' => (float) $this->total_price,
             'status' => $this->status,
             'voucher_code' => $this->voucher_code,
             'notes' => $this->notes,
             'can_cancel' => $currentUser ? $this->canBeCancelledBy($currentUser) : false,
             'created_at' => $this->created_at?->toIso8601String(),
-            'space' => $this->whenLoaded('space', function () {
+            'space' => $this->whenLoaded('space', function (Space $space) {
                 return [
-                    'id' => $this->space->id,
-                    'name' => $this->space->name,
-                    'city' => $this->space->city,
-                    'state' => $this->space->state,
-                    'hourly_price' => $this->space->hourly_price ? (float) $this->space->hourly_price : null,
-                    'daily_price' => $this->space->daily_price ? (float) $this->space->daily_price : null,
-                    'is_free' => (bool) $this->space->is_free,
+                    'id' => $space->id,
+                    'name' => $space->name,
+                    'city' => $space->city,
+                    'state' => $space->state,
+                    'hourly_price' => $space->hourly_price ? (float) $space->hourly_price : null,
+                    'daily_price' => $space->daily_price ? (float) $space->daily_price : null,
+                    'is_free' => (bool) $space->is_free,
                 ];
             }),
-            'user' => $this->whenLoaded('user', function () {
+            'user' => $this->whenLoaded('user', function (User $user) {
                 return [
-                    'id' => $this->user->id,
-                    'name' => $this->user->name,
-                    'email' => $this->user->email,
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
                 ];
             }),
         ];

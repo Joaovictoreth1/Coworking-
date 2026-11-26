@@ -1,16 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { ApiError } from '../lib/api'
 import { bookingsApi, type BookingPayload, type BookingPreviewResult } from '../lib/bookings'
 import type { AdminMetrics, Booking, Paginated } from '../lib/spaces'
 import { toast } from '../store/useToastStore'
 
-export function useUserBookingsQuery(status?: string) {
-    return useQuery<Booking[]>({
-        queryKey: ['bookings', status ?? 'all'],
-        queryFn: async () => {
-            const res = await bookingsApi.list(status)
-            return res.data
-        },
+export function useUserBookingsQuery(page: number, status?: Booking['status']) {
+    return useQuery<Paginated<Booking>>({
+        queryKey: ['bookings', page, status],
+        queryFn: () => bookingsApi.list(page, status),
     })
 }
 
@@ -33,6 +30,16 @@ export function useBookingPreviewQuery(
     })
 }
 
+export function isBookingConflict(error: unknown): error is ApiError {
+    return error instanceof ApiError
+        && (error.status === 409 || (error.status === 422 && Boolean(error.errors.booking_conflict)))
+}
+
+function refreshSchedule(queryClient: QueryClient, spaceId: number) {
+    void queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
+    void queryClient.invalidateQueries({ queryKey: ['availability', spaceId] })
+}
+
 export function useCreateBookingMutation(spaceId: number) {
     const queryClient = useQueryClient()
 
@@ -41,13 +48,14 @@ export function useCreateBookingMutation(spaceId: number) {
             return await bookingsApi.create(spaceId, payload)
         },
         onSuccess: () => {
+            refreshSchedule(queryClient, spaceId)
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
-            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva confirmada com sucesso! 🚀')
         },
         onError: (err: unknown) => {
+            if (isBookingConflict(err)) refreshSchedule(queryClient, spaceId)
             const message = err instanceof ApiError ? err.message : 'Falha ao confirmar reserva.'
             toast.error(message)
         },
@@ -61,9 +69,9 @@ export function useCancelBookingMutation() {
         mutationFn: async ({ bookingId, reason }: { bookingId: number; reason?: string }) => {
             return await bookingsApi.cancel(bookingId, reason)
         },
-        onSuccess: () => {
+        onSuccess: ({ booking }) => {
+            refreshSchedule(queryClient, booking.space_id)
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
-            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva cancelada com sucesso.')
@@ -116,11 +124,11 @@ export function useAdminUpdateBookingStatusMutation() {
         }) => {
             return await bookingsApi.adminUpdateStatus(bookingId, status, notes)
         },
-        onSuccess: () => {
+        onSuccess: ({ booking }) => {
+            refreshSchedule(queryClient, booking.space_id)
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
-            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             toast.success('Status da reserva atualizado com sucesso!')
         },
         onError: (err: unknown) => {

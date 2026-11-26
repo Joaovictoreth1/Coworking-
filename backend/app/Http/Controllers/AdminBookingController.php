@@ -7,11 +7,13 @@ namespace App\Http\Controllers;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Services\BookingService;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator as RequestValidator;
 
 class AdminBookingController extends Controller
 {
@@ -24,47 +26,65 @@ class AdminBookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $validated = $request->validate([
-            'status' => ['nullable', 'string', Rule::in(Booking::ALL_STATUSES)],
-            'space_id' => ['nullable', 'integer', 'min:1'],
+        $validator = Validator::make($request->all(), [
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
+            'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
+            'space_id' => ['sometimes', 'integer', 'min:1'],
             'from_date' => ['nullable', 'date'],
             'to_date' => ['nullable', 'date'],
             'search' => ['nullable', 'string', 'max:255'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ], [
             'status.in' => 'Status de filtro inválido.',
         ]);
-
+        $validator->after(function (RequestValidator $validator): void {
+            $dates = $validator->getData();
+            if (isset($dates['from_date'], $dates['to_date'])
+                && ! $validator->errors()->hasAny(['from_date', 'to_date'])
+                && CarbonImmutable::parse($dates['to_date'])->toDateString() < CarbonImmutable::parse($dates['from_date'])->toDateString()
+            ) {
+                $validator->errors()->add('to_date', __('validation.after_or_equal', [
+                    'attribute' => 'to_date',
+                    'date' => 'from_date',
+                ]));
+            }
+        });
+        $filters = $validator->validate();
+        $fromDate = isset($filters['from_date']) ? CarbonImmutable::parse($filters['from_date'])->toDateString() : null;
+        $toDate = isset($filters['to_date']) ? CarbonImmutable::parse($filters['to_date'])->toDateString() : null;
+        $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
         $query = Booking::query()
             ->with(['space', 'user'])
-            ->latest('start_time');
+            ->orderBy('start_time', $direction)
+            ->orderBy('id', $direction);
 
-        if (! empty($validated['status'])) {
-            $query->where('status', $validated['status']);
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if (! empty($validated['space_id'])) {
-            $query->where('space_id', (int) $validated['space_id']);
+        if (isset($filters['space_id'])) {
+            $query->where('space_id', (int) $filters['space_id']);
         }
 
-        if (! empty($validated['from_date'])) {
-            $query->whereDate('start_time', '>=', $validated['from_date']);
+        if ($fromDate !== null) {
+            $query->where('start_time', '>=', $fromDate.' 00:00:00');
         }
 
-        if (! empty($validated['to_date'])) {
-            $query->whereDate('end_time', '<=', $validated['to_date']);
+        if ($toDate !== null) {
+            $query->where('end_time', '<', CarbonImmutable::parse($toDate)->addDay()->toDateTimeString());
         }
 
-        if (! empty($validated['search'])) {
-            $term = '%' . addcslashes(trim($validated['search']), '%_\\') . '%';
+        if (isset($filters['search'])) {
+            $term = '%'.strtr(trim($filters['search']), ['!' => '!!', '%' => '!%', '_' => '!_']).'%';
             $query->where(function ($q) use ($term) {
-                $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                  ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                $q->whereHas('user', fn ($uq) => $uq->whereRaw("name like ? escape '!'", [$term])
+                    ->orWhereRaw("email like ? escape '!'", [$term]))
+                    ->orWhereHas('space', fn ($sq) => $sq->whereRaw("name like ? escape '!'", [$term]));
             });
         }
 
-        $perPage = (int) ($validated['per_page'] ?? 20);
-        $bookings = $query->paginate($perPage);
+        $bookings = $query->paginate((int) ($filters['per_page'] ?? 20))->withQueryString();
 
         return BookingResource::collection($bookings);
     }
@@ -83,32 +103,7 @@ class AdminBookingController extends Controller
             'notes.max' => 'As observações não podem exceder 1000 caracteres.',
         ]);
 
-        $newStatus = $validated['status'];
-        $isReactivating = $booking->status === Booking::STATUS_CANCELLED
-            && in_array($newStatus, [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED], true);
-
-        DB::transaction(function () use ($booking, $validated, $newStatus, $isReactivating) {
-            if ($isReactivating) {
-                DB::table('bookings')
-                    ->where('space_id', $booking->space_id)
-                    ->where('status', '!=', Booking::STATUS_CANCELLED)
-                    ->lockForUpdate()
-                    ->get();
-
-                $this->bookingService->validateNoOverlap(
-                    $booking->space,
-                    $booking->start_time,
-                    $booking->end_time,
-                    $booking->id
-                );
-            }
-
-            $booking->update([
-                'status' => $newStatus,
-                'notes' => $validated['notes'] ?? $booking->notes,
-            ]);
-        });
-
+        $booking = $this->bookingService->updateStatus($booking, $validated['status'], $validated['notes'] ?? null);
         $booking->load(['space', 'user']);
 
         return response()->json([

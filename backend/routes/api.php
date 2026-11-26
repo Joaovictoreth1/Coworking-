@@ -18,7 +18,7 @@ Route::prefix('auth')->group(function () {
     Route::post('register', [AuthController::class, 'register'])->middleware('throttle:10,1');
     Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-    Route::middleware('auth.token')->group(function () {
+    Route::middleware(['auth.token', 'throttle:120,1,auth-read:'])->group(function () {
         Route::get('me', [AuthController::class, 'me']);
         Route::post('logout', [AuthController::class, 'logout']);
     });
@@ -34,7 +34,7 @@ Route::middleware(['auth.token:optional', 'throttle:120,1'])->group(function () 
 });
 
 // ── 3. Áreas Autenticadas do Cliente / Usuário Comum ─────────────────────────
-Route::middleware('auth.token')->group(function () {
+Route::middleware(['auth.token', 'throttle:120,1,customer:'])->group(function () {
     // Favoritos
     Route::get('favorites', [FavoriteController::class, 'index']);
     Route::post('spaces/{space}/favorite', [FavoriteController::class, 'store'])->whereNumber('space');
@@ -49,25 +49,26 @@ Route::middleware('auth.token')->group(function () {
 
     // Reservas (Bookings / Reservations)
     Route::get('bookings', [BookingController::class, 'index']);
-    Route::post('spaces/{space}/bookings', [BookingController::class, 'store'])->whereNumber('space');
     Route::get('bookings/{booking}', [BookingController::class, 'show'])->whereNumber('booking');
-    Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->whereNumber('booking');
-    Route::delete('bookings/{booking}', [BookingController::class, 'cancel'])->whereNumber('booking');
-
     Route::get('reservations', [ReservationController::class, 'index']);
-    Route::post('spaces/{space}/reservations', [ReservationController::class, 'store'])
-        ->whereNumber('space')
-        ->middleware('throttle:20,1');
-    Route::delete('reservations/{reservation}', [ReservationController::class, 'destroy'])->whereNumber('reservation');
+
+    Route::middleware('throttle:20,1,booking-write:')->group(function () {
+        Route::post('spaces/{space}/bookings', [BookingController::class, 'store'])->whereNumber('space');
+        Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->whereNumber('booking');
+        Route::delete('bookings/{booking}', [BookingController::class, 'cancel'])->whereNumber('booking');
+        Route::post('spaces/{space}/reservations', [ReservationController::class, 'store'])->whereNumber('space');
+        Route::delete('reservations/{reservation}', [ReservationController::class, 'destroy'])->whereNumber('reservation');
+    });
 });
 
 // ── 4. Imagens dos Locais (Pública) ──────────────────────────────────────────
 Route::get('photos/{photo}', [SpacePhotoController::class, 'show'])
     ->whereNumber('photo')
+    ->middleware('throttle:300,1,photos:')
     ->name('photos.show');
 
 // ── 5. Painel Administrativo ─────────────────────────────────────────────────
-Route::middleware('auth.token')->prefix('admin')->group(function () {
+Route::middleware(['auth.token', 'throttle:120,1,management:'])->prefix('admin')->group(function () {
     // Gerenciamento de Espaços
     Route::apiResource('spaces', SpaceController::class);
     Route::get('spaces/{space}/reservations', [ReservationController::class, 'forSpace'])->whereNumber('space');

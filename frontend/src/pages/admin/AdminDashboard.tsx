@@ -7,6 +7,7 @@ import {
     useAdminUpdateBookingStatusMutation,
 } from '../../hooks/useBookings'
 import { ApiError } from '../../lib/api'
+import { formatBookingDate, formatBookingTime } from '../../lib/bookingTime'
 import { href } from '../../lib/route'
 import { formatBRL, type Booking } from '../../lib/spaces'
 import { primaryButton, secondaryButton } from '../../lib/ui'
@@ -133,7 +134,7 @@ export default function AdminDashboard() {
                         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
                     >
                         <span>
-                            Não foi possível carregar as métricas:{' '}
+                            <strong>Não foi possível carregar as métricas.</strong>{' '}
                             {metricsError instanceof ApiError ? metricsError.message : 'erro inesperado.'}
                         </span>
                         <button
@@ -147,7 +148,7 @@ export default function AdminDashboard() {
                 )}
 
                 {/* Métricas e KPIs */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                {!metricsError && <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Faturamento Estimado */}
                     <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
                         <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
@@ -240,10 +241,10 @@ export default function AdminDashboard() {
                             </div>
                         )}
                     </div>
-                </div>
+                </div>}
 
                 {/* Barra Visual de Distribuição de Status */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
+                {!metricsError && !loadingMetrics && <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
                             <h3 className="text-sm font-bold text-slate-900">
@@ -327,7 +328,7 @@ export default function AdminDashboard() {
                             title={`Canceladas: ${cancelledPct}%`}
                         />
                     </div>
-                </div>
+                </div>}
 
                 {/* Gestão de Reservas */}
                 <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
@@ -385,7 +386,7 @@ export default function AdminDashboard() {
                                     </tr>
                                 ) : bookingsError ? (
                                     <tr>
-                                        <td colSpan={7} className="py-10 text-center">
+                                        <td colSpan={7} className="py-10 text-center" role="alert">
                                             <p className="text-rose-700 font-semibold">
                                                 Não foi possível carregar as reservas.
                                             </p>
@@ -428,18 +429,11 @@ export default function AdminDashboard() {
                                             </td>
                                             <td className="py-3.5 px-5 whitespace-nowrap">
                                                 <div>
-                                                    {new Date(b.start_time).toLocaleDateString('pt-BR')}
+                                                    {formatBookingDate(b.start_time, b.timezone)}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400">
-                                                    {new Date(b.start_time).toLocaleTimeString('pt-BR', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}{' '}
-                                                    às{' '}
-                                                    {new Date(b.end_time).toLocaleTimeString('pt-BR', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}{' '}
+                                                    {formatBookingTime(b.start_time, b.timezone)} às{' '}
+                                                    {formatBookingTime(b.end_time, b.timezone)}{' '}
                                                     ({b.duration_hours}h)
                                                 </div>
                                             </td>

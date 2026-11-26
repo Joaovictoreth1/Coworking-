@@ -7,11 +7,11 @@ use App\Models\Reservation;
 use App\Models\Space;
 use App\Models\User;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\DB;
 
 class ReservationService
 {
+    public function __construct(private readonly SpaceSchedule $schedule) {}
+
     /**
      * Cria a reserva de forma atômica.
      *
@@ -22,10 +22,8 @@ class ReservationService
      */
     public function create(Space $space, User $user, string $rate, CarbonImmutable $start, CarbonImmutable $end): Reservation
     {
-        return DB::transaction(function () use ($space, $user, $rate, $start, $end) {
-            $locked = Space::query()->whereKey($space->id)->lockForUpdate()->first();
-
-            if (! $locked || ! $locked->is_active) {
+        return $this->schedule->withinLock($space->id, function (Space $locked) use ($user, $rate, $start, $end) {
+            if (! $locked->is_active) {
                 throw new ReservationException('Este local não está disponível para reservas.', 404);
             }
 
@@ -35,7 +33,7 @@ class ReservationService
 
             [$startsAt, $endsAt, $price] = $this->resolvePeriod($locked, $rate, $start, $end);
 
-            if (Reservation::query()->where('space_id', $locked->id)->overlapping($startsAt, $endsAt)->exists()) {
+            if ($this->schedule->hasConflict($locked, $startsAt, $endsAt)) {
                 throw ReservationException::conflict();
             }
 
@@ -48,14 +46,14 @@ class ReservationService
                 'status' => Reservation::STATUS_CONFIRMED,
                 'total_price' => $price,
             ]);
-        }, 3);
+        });
     }
 
     /** Cancela de forma idempotente. A autorização (dono, gestor do local ou admin) é feita no controller. */
     public function cancel(Reservation $reservation, User $actor): Reservation
     {
-        return DB::transaction(function () use ($reservation, $actor) {
-            $locked = Reservation::query()->whereKey($reservation->id)->lockForUpdate()->firstOrFail();
+        return $this->schedule->withinLock($reservation->space_id, function (Space $space) use ($reservation, $actor) {
+            $locked = Reservation::query()->findOrFail($reservation->id);
 
             if ($locked->isCancelled()) {
                 return $locked;
@@ -66,7 +64,7 @@ class ReservationService
             }
 
             // A antecedência mínima vale só para o cliente; quem gerencia o local pode cancelar a qualquer momento.
-            $manages = $actor->isAdmin() || $locked->space()->value('user_id') === $actor->id;
+            $manages = $actor->isAdmin() || $space->user_id === $actor->id;
             $notice = (int) config('coworking.reservations.cancellation_notice_hours');
 
             if (! $manages && $locked->starts_at->subHours($notice)->isPast()) {
@@ -77,16 +75,6 @@ class ReservationService
 
             return $locked;
         });
-    }
-
-    /** Intervalos ocupados de um dia (sem dados pessoais) para a tela de escolha de horário. */
-    public function busyOn(Space $space, CarbonImmutable $day): Collection
-    {
-        return Reservation::query()
-            ->where('space_id', $space->id)
-            ->overlapping($day->startOfDay()->utc(), $day->endOfDay()->utc())
-            ->orderBy('starts_at')
-            ->get(['id', 'space_id', 'starts_at', 'ends_at']);
     }
 
     /**
@@ -126,6 +114,7 @@ class ReservationService
         ];
     }
 
+    /** @return array{start: CarbonImmutable, end: CarbonImmutable, total: float} */
     private function hourly(Space $space, CarbonImmutable $start, CarbonImmutable $end, float $price): array
     {
         $slot = (int) config('coworking.reservations.slot_minutes');
@@ -160,6 +149,7 @@ class ReservationService
         return ['start' => $start, 'end' => $end, 'total' => $price * $minutes / 60];
     }
 
+    /** @return array{start: CarbonImmutable, end: CarbonImmutable, total: float} */
     private function daily(Space $space, CarbonImmutable $start, CarbonImmutable $end, float $price): array
     {
         $max = (int) config('coworking.reservations.max_days');

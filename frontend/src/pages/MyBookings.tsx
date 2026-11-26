@@ -3,6 +3,7 @@ import ComponentBody from '../components/ComponentBody'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
 import { ApiError } from '../lib/api'
+import { formatBookingDate, formatBookingTime } from '../lib/bookingTime'
 import { href } from '../lib/route'
 import { formatBRL, type Booking } from '../lib/spaces'
 import { primaryButton, secondaryButton } from '../lib/ui'
@@ -58,36 +59,16 @@ function getStatusBadge(status: Booking['status']) {
     }
 }
 
-function formatDate(iso: string) {
-    const d = new Date(iso)
-    return d.toLocaleDateString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    })
-}
-
-function formatTime(iso: string) {
-    const d = new Date(iso)
-    return d.toLocaleTimeString('pt-BR', {
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-}
-
 export default function MyBookings() {
     const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
+    const [page, setPage] = useState(1)
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
-    const {
-        data: bookings,
-        isLoading,
-        error,
-        refetch,
-        isFetching,
-    } = useUserBookingsQuery(selectedTab || undefined)
+    const { data, isLoading, error, refetch, isFetching } = useUserBookingsQuery(page, selectedTab || undefined)
+    const bookings = data?.data
+    const meta = data?.meta
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
@@ -125,7 +106,10 @@ export default function MyBookings() {
                             <button
                                 key={tab.value}
                                 type="button"
-                                onClick={() => setSelectedTab(tab.value)}
+                                onClick={() => {
+                                    setSelectedTab(tab.value)
+                                    setPage(1)
+                                }}
                                 className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer whitespace-nowrap ${
                                     active
                                         ? 'bg-slate-900 text-white shadow-sm'
@@ -212,12 +196,12 @@ export default function MyBookings() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
                                         <div className="flex items-center gap-2">
                                             <span className="font-semibold text-slate-800">Data:</span>
-                                            <span>{formatDate(booking.start_time)}</span>
+                                            <span>{formatBookingDate(booking.start_time, booking.timezone)}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-semibold text-slate-800">Horário:</span>
                                             <span>
-                                                {formatTime(booking.start_time)} às {formatTime(booking.end_time)} (
+                                                {formatBookingTime(booking.start_time, booking.timezone)} às {formatBookingTime(booking.end_time, booking.timezone)} (
                                                 {booking.duration_hours}h)
                                             </span>
                                         </div>
@@ -277,6 +261,21 @@ export default function MyBookings() {
                         ))
                     )}
                 </div>
+                {meta && (meta.last_page > 1 || page > 1) && !error && (
+                    <nav aria-label="Paginação de reservas" className="mt-6 flex items-center justify-between gap-3 text-sm text-slate-600">
+                        <span>Página {meta.current_page} de {meta.last_page}</span>
+                        <div className="flex gap-2">
+                            <button type="button" className={secondaryButton} disabled={page <= 1}
+                                onClick={() => setPage(Math.min(page - 1, meta.last_page))}>
+                                Anterior
+                            </button>
+                            <button type="button" className={secondaryButton} disabled={page >= meta.last_page}
+                                onClick={() => setPage(page + 1)}>
+                                Próxima
+                            </button>
+                        </div>
+                    </nav>
+                )}
             </div>
 
             {/* Modal de Comprovante de Reserva */}
@@ -303,12 +302,12 @@ export default function MyBookings() {
                         <div className="space-y-3 text-sm bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500 font-medium">Data Agendada:</span>
-                                <span className="font-bold text-slate-800">{formatDate(selectedVoucher.start_time)}</span>
+                                <span className="font-bold text-slate-800">{formatBookingDate(selectedVoucher.start_time, selectedVoucher.timezone)}</span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500 font-medium">Horário / Período:</span>
                                 <span className="font-bold text-slate-800">
-                                    {formatTime(selectedVoucher.start_time)} às {formatTime(selectedVoucher.end_time)} ({selectedVoucher.duration_hours}h)
+                                    {formatBookingTime(selectedVoucher.start_time, selectedVoucher.timezone)} às {formatBookingTime(selectedVoucher.end_time, selectedVoucher.timezone)} ({selectedVoucher.duration_hours}h)
                                 </span>
                             </div>
                             {selectedVoucher.space && (
