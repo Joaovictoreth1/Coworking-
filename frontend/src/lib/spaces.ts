@@ -26,6 +26,8 @@ export interface Space {
     neighborhood: string | null
     city: string
     state: string
+    latitude?: number | null
+    longitude?: number | null
     hourly_price: number | null
     daily_price: number | null
     monthly_price: number | null

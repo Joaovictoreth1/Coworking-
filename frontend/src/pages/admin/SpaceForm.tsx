@@ -9,6 +9,7 @@ import Field from '../../components/Field'
 import { ArrowLeftIcon } from '../../components/icons'
 import { ApiError } from '../../lib/api'
 import { clearFlash, peekFlash, setFlash } from '../../lib/flash'
+import { getGoogleMapsPlaceUrl } from '../../lib/maps'
 import { href, navigate } from '../../lib/route'
 import {
     STATES,
@@ -38,6 +39,8 @@ interface FormState {
     neighborhood: string
     city: string
     state: string
+    latitude: string
+    longitude: string
     hourly_enabled: boolean
     hourly_price: string
     daily_enabled: boolean
@@ -62,6 +65,8 @@ const emptyForm = (): FormState => ({
     neighborhood: '',
     city: '',
     state: '',
+    latitude: '',
+    longitude: '',
     hourly_enabled: true,
     hourly_price: '',
     daily_enabled: false,
@@ -92,6 +97,8 @@ const fromSpace = (s: Space): FormState => ({
     neighborhood: s.neighborhood ?? '',
     city: s.city,
     state: s.state,
+    latitude: s.latitude != null ? String(s.latitude) : '',
+    longitude: s.longitude != null ? String(s.longitude) : '',
     hourly_enabled: s.hourly_price !== null,
     hourly_price: moneyToInput(s.hourly_price),
     daily_enabled: s.daily_price !== null,
@@ -118,6 +125,8 @@ const toPayload = (f: FormState): SpacePayload => ({
     neighborhood: orNull(f.neighborhood),
     city: f.city.trim(),
     state: f.state,
+    latitude: f.latitude.trim() ? Number(f.latitude.replace(',', '.')) : null,
+    longitude: f.longitude.trim() ? Number(f.longitude.replace(',', '.')) : null,
     // Espaço gratuito não tem preços
     hourly_price: !f.is_free && f.hourly_enabled ? parseMoney(f.hourly_price) : null,
     daily_price: !f.is_free && f.daily_enabled ? parseMoney(f.daily_price) : null,
@@ -591,7 +600,56 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                         error={errors.state?.[0]}
                                     />
                                 </div>
+                                <div className="sm:col-span-3">
+                                    <Field
+                                        label="Latitude (Google Maps)"
+                                        name="latitude"
+                                        inputMode="decimal"
+                                        placeholder="Ex.: -23.5629"
+                                        hint="Opcional — usado para posicionar o pino exato no Google Maps."
+                                        value={form.latitude}
+                                        onChange={(v) => set('latitude', v.replace(/[^\d.,-]/g, ''))}
+                                        error={errors.latitude?.[0]}
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <Field
+                                        label="Longitude (Google Maps)"
+                                        name="longitude"
+                                        inputMode="decimal"
+                                        placeholder="Ex.: -46.6544"
+                                        hint="Opcional — ex.: São Paulo fica em torno de -46.65."
+                                        value={form.longitude}
+                                        onChange={(v) => set('longitude', v.replace(/[^\d.,-]/g, ''))}
+                                        error={errors.longitude?.[0]}
+                                    />
+                                </div>
                             </div>
+                            {(form.street.trim() || (form.latitude.trim() && form.longitude.trim())) && (
+                                <div className="pt-1">
+                                    <a
+                                        href={getGoogleMapsPlaceUrl({
+                                            name: form.name.trim() || 'Coworking',
+                                            street: form.street.trim(),
+                                            number: form.number.trim() || null,
+                                            neighborhood: form.neighborhood.trim() || null,
+                                            city: form.city.trim() || 'São Paulo',
+                                            state: form.state || 'SP',
+                                            latitude: form.latitude.trim()
+                                                ? Number(form.latitude.replace(',', '.'))
+                                                : null,
+                                            longitude: form.longitude.trim()
+                                                ? Number(form.longitude.replace(',', '.'))
+                                                : null,
+                                        })}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                                    >
+                                        Conferir localização no Google Maps →
+                                    </a>
+                                </div>
+                            )}
                         </Section>
 
                         <Section

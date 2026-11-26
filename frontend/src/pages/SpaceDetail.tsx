@@ -16,6 +16,12 @@ import Reviews from '../components/Reviews'
 import { Stars } from '../components/StarRating'
 import { ApiError } from '../lib/api'
 import { useFavoriteToggle } from '../lib/favorites'
+import {
+    getGoogleMapsDirectionsUrl,
+    getGoogleMapsEmbedUrl,
+    getGoogleMapsPlaceUrl,
+    hasCoordinates,
+} from '../lib/maps'
 import { href } from '../lib/route'
 import {
     WEEKDAYS,
@@ -397,6 +403,55 @@ export default function SpaceDetail({ id }: { id: number }) {
                                 </div>
                             </section>
                         </div>
+
+                        <section aria-labelledby="space-map-heading">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h2
+                                        id="space-map-heading"
+                                        className="font-display text-xl font-semibold text-slate-900"
+                                    >
+                                        Localização no Google Maps
+                                    </h2>
+                                    <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600">
+                                        <MapPinIcon className="h-4 w-4 shrink-0 text-indigo-600" />
+                                        <span>{formatAddress(space)}</span>
+                                    </p>
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <a
+                                        href={getGoogleMapsDirectionsUrl(space)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`${secondaryButton} !h-9 !rounded-xl !px-3.5 text-xs`}
+                                    >
+                                        Como chegar
+                                    </a>
+                                    <a
+                                        href={getGoogleMapsPlaceUrl(space)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`${secondaryButton} !h-9 !rounded-xl !px-3.5 text-xs`}
+                                    >
+                                        Abrir no Google Maps
+                                    </a>
+                                </div>
+                            </div>
+                            <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-xs">
+                                <iframe
+                                    title={`Mapa Google Maps de ${space.name}`}
+                                    src={getGoogleMapsEmbedUrl(space)}
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                    className="h-72 w-full border-0 sm:h-80"
+                                />
+                            </div>
+                            {hasCoordinates(space) && (
+                                <p className="mt-2 text-xs text-slate-500">
+                                    Coordenadas GPS: {space.latitude.toFixed(5)}, {space.longitude.toFixed(5)}
+                                </p>
+                            )}
+                        </section>
 
                         <Reviews
                             spaceId={space.id}

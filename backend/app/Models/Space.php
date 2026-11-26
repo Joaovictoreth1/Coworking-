@@ -24,6 +24,7 @@ class Space extends Model
     protected $fillable = [
         'user_id', 'name', 'description', 'capacity', 'zip_code', 'street',
         'number', 'complement', 'neighborhood', 'city', 'state',
+        'latitude', 'longitude',
         'hourly_price', 'daily_price', 'monthly_price', 'is_free',
         'opening_hours', 'availability', 'amenities', 'is_active',
     ];
@@ -32,6 +33,8 @@ class Space extends Model
     {
         return [
             'capacity' => 'integer',
+            'latitude' => 'float',
+            'longitude' => 'float',
             'opening_hours' => 'array',
             'availability' => 'array',
             'amenities' => 'array',
