@@ -21,6 +21,24 @@ class ProductionSafetyTest extends TestCase
         $this->app->make(DatabaseSeeder::class)->run();
     }
 
+    public function test_production_config_check_rejects_unsafe_values_before_migration(): void
+    {
+        $this->app['env'] = 'production';
+        config([
+            'app.debug' => true,
+            'app.key' => '',
+            'app.url' => 'http://coworking.example.com',
+            'trustedproxy.proxies' => ['0.0.0.0/0'],
+        ]);
+
+        $this->artisan('coworking:validate-production')
+            ->expectsOutputToContain('APP_DEBUG')
+            ->expectsOutputToContain('APP_KEY')
+            ->expectsOutputToContain('APP_URL')
+            ->expectsOutputToContain('TRUSTED_PROXIES')
+            ->assertFailed();
+    }
+
     public function test_create_admin_generates_password_and_promotes(): void
     {
         $this->artisan('coworking:create-admin', ['email' => 'Dono@Empresa.com', '--name' => 'Dono'])

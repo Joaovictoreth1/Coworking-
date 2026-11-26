@@ -5,7 +5,9 @@ use App\Http\Middleware\EnsureAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -15,9 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // Atrás do proxy (Caddy) o IP real do cliente vem em X-Forwarded-For; sem isso o throttle
-        // enxergaria todos os usuários como um só. Restrinja TRUSTED_PROXIES se expuser o app direto.
-        $middleware->trustProxies(at: env('TRUSTED_PROXIES', '*') === '*' ? '*' : explode(',', env('TRUSTED_PROXIES')));
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO);
 
         $middleware->alias([
             'auth.token' => AuthenticateApiToken::class,
@@ -28,4 +28,15 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+        $exceptions->respond(function (Response $response, Throwable $exception, Request $request): Response {
+            if ($request->is('api/*') && $response instanceof JsonResponse && $response->getStatusCode() >= 400) {
+                $data = $response->getData(true);
+                if (! is_string($data['message'] ?? null) || $data['message'] === '') {
+                    $data['message'] = Response::$statusTexts[$response->getStatusCode()] ?? 'Erro inesperado.';
+                    $response->setData($data);
+                }
+            }
+
+            return $response;
+        });
     })->create();
