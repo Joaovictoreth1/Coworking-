@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Mensagem de erro/sucesso em destaque (equivale ao `<Alert>` do site).
 class InfoBanner extends StatelessWidget {
