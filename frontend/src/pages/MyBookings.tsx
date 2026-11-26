@@ -57,18 +57,20 @@ function getStatusBadge(status: Booking['status']) {
     }
 }
 
-function formatDate(iso: string) {
+function formatDate(iso: string, timeZone: string) {
     const d = new Date(iso)
     return d.toLocaleDateString('pt-BR', {
+        timeZone,
         day: '2-digit',
         month: '2-digit',
         year: 'numeric',
     })
 }
 
-function formatTime(iso: string) {
+function formatTime(iso: string, timeZone: string) {
     const d = new Date(iso)
     return d.toLocaleTimeString('pt-BR', {
+        timeZone,
         hour: '2-digit',
         minute: '2-digit',
     })
@@ -192,12 +194,12 @@ export default function MyBookings() {
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-slate-600">
                                         <div className="flex items-center gap-2">
                                             <span className="font-semibold text-slate-800">Data:</span>
-                                            <span>{formatDate(booking.start_time)}</span>
+                                            <span>{formatDate(booking.start_time, booking.timezone)}</span>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <span className="font-semibold text-slate-800">Horário:</span>
                                             <span>
-                                                {formatTime(booking.start_time)} às {formatTime(booking.end_time)} (
+                                                {formatTime(booking.start_time, booking.timezone)} às {formatTime(booking.end_time, booking.timezone)} (
                                                 {booking.duration_hours}h)
                                             </span>
                                         </div>
@@ -283,12 +285,12 @@ export default function MyBookings() {
                         <div className="space-y-3 text-sm bg-slate-50/70 p-4 rounded-2xl border border-slate-100">
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500 font-medium">Data Agendada:</span>
-                                <span className="font-bold text-slate-800">{formatDate(selectedVoucher.start_time)}</span>
+                                <span className="font-bold text-slate-800">{formatDate(selectedVoucher.start_time, selectedVoucher.timezone)}</span>
                             </div>
                             <div className="flex justify-between items-center text-xs">
                                 <span className="text-slate-500 font-medium">Horário / Período:</span>
                                 <span className="font-bold text-slate-800">
-                                    {formatTime(selectedVoucher.start_time)} às {formatTime(selectedVoucher.end_time)} ({selectedVoucher.duration_hours}h)
+                                    {formatTime(selectedVoucher.start_time, selectedVoucher.timezone)} às {formatTime(selectedVoucher.end_time, selectedVoucher.timezone)} ({selectedVoucher.duration_hours}h)
                                 </span>
                             </div>
                             {selectedVoucher.space && (

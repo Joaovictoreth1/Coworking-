@@ -335,6 +335,30 @@ class BookingTest extends TestCase
             ->assertJsonPath('data.start_time', $start->copy()->utc()->toIso8601String());
     }
 
+    public function test_space_and_booking_responses_expose_the_configured_schedule_timezone(): void
+    {
+        config(['coworking.timezone' => 'Europe/Paris']);
+        $user = User::factory()->create();
+        $space = Space::factory()->create(['opening_hours' => null]);
+        $start = Carbon::now('Europe/Paris')->addDays(5)->setTime(9, 0);
+        $end = $start->copy()->addHours(4);
+        $payload = [
+            'start_time' => $start->format('Y-m-d\TH:i:s'),
+            'end_time' => $end->format('Y-m-d\TH:i:s'),
+        ];
+
+        $this->getJson("/api/spaces/{$space->id}")->assertOk()
+            ->assertJsonPath('data.timezone', 'Europe/Paris');
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", $payload)->assertOk()
+            ->assertJsonPath('duration_hours', 4);
+        $this->withToken($user->createApiToken('test'))
+            ->postJson("/api/spaces/{$space->id}/bookings", $payload)->assertCreated();
+        $this->getJson('/api/bookings')->assertOk()
+            ->assertJsonPath('data.0.timezone', 'Europe/Paris')
+            ->assertJsonPath('data.0.start_time', $start->copy()->utc()->toIso8601String())
+            ->assertJsonPath('data.0.end_time', $end->copy()->utc()->toIso8601String());
+    }
+
     public function test_writes_across_both_booking_contracts_share_a_rate_limit(): void
     {
         $user = User::factory()->create();

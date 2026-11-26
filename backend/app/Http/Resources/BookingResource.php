@@ -27,6 +27,7 @@ class BookingResource extends JsonResource
             'user_email' => $this->user?->email,
             'start_time' => $this->start_time->toIso8601String(),
             'end_time' => $this->end_time->toIso8601String(),
+            'timezone' => config('coworking.timezone'),
             'duration_hours' => (int) ceil($this->start_time->diffInMinutes($this->end_time) / 60),
             'total_price' => (float) $this->total_price,
             'status' => $this->status,

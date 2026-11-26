@@ -15,7 +15,7 @@ const space: Space = {
     street: 'Rua Central', number: null, complement: null, neighborhood: null,
     city: 'São Paulo', state: 'SP', hourly_price: 50, daily_price: null,
     monthly_price: null, is_free: false, rating_avg: null, reviews_count: 0,
-    is_favorite: false, owner_id: 2, opening_hours: [], availability: [],
+    is_favorite: false, owner_id: 2, opening_hours: [], availability: [], timezone: 'America/Sao_Paulo',
     amenities: [], is_active: true, photos: [], cover_url: null, created_at: '', updated_at: '',
 }
 
@@ -28,10 +28,32 @@ function mount() {
 
 afterEach(() => {
     cleanup()
+    vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.clearAllMocks()
 })
 
+test('previews and submits tomorrow in the scheduling timezone, not UTC', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2029-06-10T01:00:00Z'))
+    const fetch = vi.fn()
+        .mockImplementationOnce(() => Promise.resolve(Response.json({ available: true, duration_hours: 4, total_price: 200 })))
+        .mockImplementationOnce(() => Promise.resolve(Response.json({ data: { id: 8 } }, { status: 201 })))
+        .mockImplementation(() => Promise.resolve(Response.json({ message: 'Horário já reservado.' }, { status: 422 })))
+    vi.stubGlobal('fetch', fetch)
+    mount()
+
+    const input = screen.getByLabelText('Data')
+    expect(input).toHaveAttribute('min', '2029-06-09')
+    expect(input).toHaveValue('2029-06-10')
+    await screen.findByText('4 horas')
+    fireEvent.click(screen.getByRole('button', { name: 'Confirmar Reserva' }))
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('my-bookings'))
+
+    const body = JSON.stringify({ start_time: '2029-06-10T09:00:00', end_time: '2029-06-10T13:00:00' })
+    expect(fetch).toHaveBeenNthCalledWith(1, expect.stringMatching(/\/bookings\/preview$/), expect.objectContaining({ body }))
+    expect(fetch).toHaveBeenNthCalledWith(2, expect.stringMatching(/\/bookings$/), expect.objectContaining({ body }))
+})
 test('does not submit a booking when the preview rejects the slot', async () => {
     const fetch = vi.fn().mockImplementation(() =>
         Promise.resolve(Response.json({ message: 'Horário já reservado.' }, { status: 422 })))

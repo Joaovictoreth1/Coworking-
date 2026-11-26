@@ -42,6 +42,7 @@ class SpaceResource extends JsonResource
 
             'opening_hours' => $this->opening_hours ?? [],
             'availability' => $this->availability ?? [],
+            'timezone' => config('coworking.timezone'),
             'amenities' => $this->amenities ?? [],
             'is_active' => $this->is_active,
             'owner_id' => $this->user_id,

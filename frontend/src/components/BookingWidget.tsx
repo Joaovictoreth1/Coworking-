@@ -10,22 +10,28 @@ interface BookingWidgetProps {
     space: Space
 }
 
+function scheduleDate(timeZone: string) {
+    const parts = new Intl.DateTimeFormat('en', {
+        timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date())
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === type)?.value
+    return `${part('year')}-${part('month')}-${part('day')}`
+}
+
 export function BookingWidget({ space }: BookingWidgetProps) {
     const { user } = useAuth()
 
-    // Data padrão: amanhã
-    const defaultDate = useMemo(() => {
-        const d = new Date()
-        d.setDate(d.getDate() + 1)
+    const today = scheduleDate(space.timezone)
+    const [date, setDate] = useState(() => {
+        const d = new Date(`${today}T00:00:00Z`)
+        d.setUTCDate(d.getUTCDate() + 1)
         return d.toISOString().split('T')[0]
-    }, [])
-
-    const [date, setDate] = useState<string>(defaultDate)
+    })
     const [startTime, setStartTime] = useState<string>('09:00')
     const [endTime, setEndTime] = useState<string>('13:00')
     const [notes, setNotes] = useState<string>('')
 
-    // Monta ISO string para API
+    // A API interpreta horários sem offset no fuso do espaço.
     const startIso = useMemo(() => {
         if (!date || !startTime) return ''
         return `${date}T${startTime}:00`
@@ -125,7 +131,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         id="booking-date"
                         type="date"
                         value={date}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={today}
                         onChange={(e) => setDate(e.target.value)}
                         className={inputClass(false, 'py-2')}
                         required

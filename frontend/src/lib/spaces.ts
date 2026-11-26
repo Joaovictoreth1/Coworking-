@@ -36,6 +36,7 @@ export interface Space {
     owner_id: number
     opening_hours: DaySchedule[]
     availability: DaySchedule[]
+    timezone: string
     amenities: string[]
     is_active: boolean
     owner?: { id: number; name: string } // só na listagem
@@ -57,6 +58,7 @@ export type SpacePayload = Omit<
     | 'rating_avg'
     | 'reviews_count'
     | 'is_favorite'
+    | 'timezone'
 >
 
 export interface Paginated<T> {
@@ -121,6 +123,7 @@ export interface Booking {
     user_email?: string
     start_time: string
     end_time: string
+    timezone: string
     duration_hours: number
     total_price: number
     status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
