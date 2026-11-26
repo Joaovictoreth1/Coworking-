@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Alert } from '../../components/admin/FormControls'
 import ComponentBody from '../../components/ComponentBody'
 import { Skeleton } from '../../components/Skeleton'
 import {
@@ -47,7 +46,8 @@ export default function AdminDashboard() {
     const setStatusFilter = useUiStore((s) => s.setAdminBookingStatus)
     const search = useUiStore((s) => s.adminBookingSearch)
     const setSearch = useUiStore((s) => s.setAdminBookingSearch)
-    const [pendingId, setPendingId] = useState<number | null>(null)
+    const [page, setPage] = useState<number>(1)
+    const [updatingBookingId, setUpdatingBookingId] = useState<number | null>(null)
 
     const {
         data: metrics,
@@ -63,28 +63,45 @@ export default function AdminDashboard() {
     } = useAdminBookingsQuery({
         status: statusFilter || undefined,
         search: search.trim() || undefined,
+        page,
     })
 
     const updateStatus = useAdminUpdateBookingStatusMutation()
 
+    function handleStatusFilterChange(next: string) {
+        setStatusFilter(next)
+        setPage(1)
+    }
+
+    function handleSearchChange(next: string) {
+        setSearch(next)
+        setPage(1)
+    }
+
     async function handleStatusChange(bookingId: number, status: string) {
-        setPendingId(bookingId)
+        setUpdatingBookingId(bookingId)
         try {
             await updateStatus.mutateAsync({ bookingId, status })
         } catch {
             // Tratado no onError do hook
         } finally {
-            setPendingId(null)
+            setUpdatingBookingId(null)
         }
     }
 
     const bookings = bookingsData?.data ?? []
+    const pagination = bookingsData?.meta
 
     const totalB = metrics?.total_bookings ?? 0
     const confirmedPct = totalB > 0 ? Math.round(((metrics?.confirmed_bookings ?? 0) / totalB) * 100) : 0
     const completedPct = totalB > 0 ? Math.round(((metrics?.completed_bookings ?? 0) / totalB) * 100) : 0
     const cancelledPct = totalB > 0 ? Math.round(((metrics?.cancelled_bookings ?? 0) / totalB) * 100) : 0
-    const pendingPct = Math.max(0, 100 - confirmedPct - completedPct - cancelledPct)
+    const pendingPct =
+        totalB === 0
+            ? 0
+            : metrics?.pending_bookings !== undefined
+              ? Math.round((metrics.pending_bookings / totalB) * 100)
+              : Math.max(0, 100 - confirmedPct - completedPct - cancelledPct)
 
     return (
         <ComponentBody>
@@ -112,23 +129,26 @@ export default function AdminDashboard() {
                     </div>
                 </div>
 
-                {/* Métricas e KPIs */}
+                {/* Erro ao carregar métricas */}
                 {metricsError && (
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="flex-1">
-                            <Alert type="error">
-                                {getErrorMessage(metricsError, 'Não foi possível carregar as métricas.')}
-                            </Alert>
-                        </div>
+                    <div
+                        role="alert"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
+                    >
+                        <span>
+                            {getErrorMessage(metricsError, 'Não foi possível carregar as métricas.')}
+                        </span>
                         <button
                             type="button"
                             onClick={() => void refetchMetrics()}
-                            className={secondaryButton}
+                            className="shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                         >
                             Tentar novamente
                         </button>
                     </div>
                 )}
+
+                {/* Métricas e KPIs */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     {/* Faturamento Estimado */}
                     <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
@@ -238,7 +258,7 @@ export default function AdminDashboard() {
                         <div className="flex flex-wrap items-center gap-3 text-xs">
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter(statusFilter === 'confirmed' ? '' : 'confirmed')}
+                                onClick={() => handleStatusFilterChange(statusFilter === 'confirmed' ? '' : 'confirmed')}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                                     statusFilter === 'confirmed'
                                         ? 'bg-emerald-50 border-emerald-300 font-bold text-emerald-800'
@@ -250,7 +270,7 @@ export default function AdminDashboard() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter(statusFilter === 'pending' ? '' : 'pending')}
+                                onClick={() => handleStatusFilterChange(statusFilter === 'pending' ? '' : 'pending')}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                                     statusFilter === 'pending'
                                         ? 'bg-amber-50 border-amber-300 font-bold text-amber-800'
@@ -262,7 +282,7 @@ export default function AdminDashboard() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter(statusFilter === 'completed' ? '' : 'completed')}
+                                onClick={() => handleStatusFilterChange(statusFilter === 'completed' ? '' : 'completed')}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                                     statusFilter === 'completed'
                                         ? 'bg-indigo-50 border-indigo-300 font-bold text-indigo-800'
@@ -274,7 +294,7 @@ export default function AdminDashboard() {
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setStatusFilter(statusFilter === 'cancelled' ? '' : 'cancelled')}
+                                onClick={() => handleStatusFilterChange(statusFilter === 'cancelled' ? '' : 'cancelled')}
                                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition cursor-pointer ${
                                     statusFilter === 'cancelled'
                                         ? 'bg-rose-50 border-rose-300 font-bold text-rose-800'
@@ -328,12 +348,12 @@ export default function AdminDashboard() {
                                 type="text"
                                 placeholder="Buscar por cliente ou espaço..."
                                 value={search}
-                                onChange={(e) => setSearch(e.target.value)}
+                                onChange={(e) => handleSearchChange(e.target.value)}
                                 className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs w-56 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                             />
                             <select
                                 value={statusFilter}
-                                onChange={(e) => setStatusFilter(e.target.value)}
+                                onChange={(e) => handleStatusFilterChange(e.target.value)}
                                 className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                             >
                                 <option value="">Todos os status</option>
@@ -377,7 +397,7 @@ export default function AdminDashboard() {
                                             <button
                                                 type="button"
                                                 onClick={() => void refetchBookings()}
-                                                className={secondaryButton}
+                                                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                                             >
                                                 Tentar novamente
                                             </button>
@@ -434,29 +454,29 @@ export default function AdminDashboard() {
                                                     {b.status === 'pending' && (
                                                         <button
                                                             type="button"
-                                                            disabled={pendingId === b.id}
+                                                            disabled={updateStatus.isPending}
                                                             onClick={() => handleStatusChange(b.id, 'confirmed')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer disabled:opacity-50"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
-                                                            Aprovar
+                                                            {updatingBookingId === b.id ? 'Salvando...' : 'Aprovar'}
                                                         </button>
                                                     )}
                                                     {b.status === 'confirmed' && (
                                                         <button
                                                             type="button"
-                                                            disabled={pendingId === b.id}
+                                                            disabled={updateStatus.isPending}
                                                             onClick={() => handleStatusChange(b.id, 'completed')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer disabled:opacity-50"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
-                                                            Concluir
+                                                            {updatingBookingId === b.id ? 'Salvando...' : 'Concluir'}
                                                         </button>
                                                     )}
                                                     {b.status !== 'cancelled' && b.status !== 'completed' && (
                                                         <button
                                                             type="button"
-                                                            disabled={pendingId === b.id}
+                                                            disabled={updateStatus.isPending}
                                                             onClick={() => handleStatusChange(b.id, 'cancelled')}
-                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer disabled:opacity-50"
+                                                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                                         >
                                                             Cancelar
                                                         </button>
@@ -469,6 +489,33 @@ export default function AdminDashboard() {
                             </tbody>
                         </table>
                     </div>
+
+                    {pagination && pagination.last_page > 1 && (
+                        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600">
+                            <span>
+                                Página {pagination.current_page} de {pagination.last_page} ({pagination.total}{' '}
+                                {pagination.total === 1 ? 'reserva' : 'reservas'})
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    disabled={pagination.current_page <= 1}
+                                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Anterior
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={pagination.current_page >= pagination.last_page}
+                                    onClick={() => setPage((p) => p + 1)}
+                                    className="px-3 py-1.5 rounded-lg border border-slate-200 font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                    Próxima
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         </ComponentBody>

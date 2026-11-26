@@ -176,7 +176,6 @@ class AdminSpaceTest extends TestCase
             'status' => Booking::STATUS_CONFIRMED,
         ]);
     }
-
     public function test_admin_cannot_reactivate_cancelled_booking_when_slot_overlaps(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);

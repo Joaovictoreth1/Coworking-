@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert } from '../components/admin/FormControls'
 import { BookingWidget } from '../components/BookingWidget'
@@ -48,6 +48,12 @@ export default function SpaceDetail({ id }: { id: number }) {
 
     const { data: space, isLoading, error, refetch } = useSpaceDetailQuery(id)
 
+    useEffect(() => {
+        if (space?.name) {
+            document.title = `${space.name} · Coworking Brasil`
+        }
+    }, [space?.name])
+
     const applyFavorite = useCallback(
         (spaceId: number, favorite: boolean) => {
             queryClient.setQueryData<Space>(['space-detail', spaceId], (prev) =>
@@ -89,7 +95,12 @@ export default function SpaceDetail({ id }: { id: number }) {
             </a>
 
             {isLoading && (
-                <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem]" aria-busy="true">
+                <div
+                    role="status"
+                    aria-live="polite"
+                    aria-busy="true"
+                    className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem]"
+                >
                     <div className="space-y-6">
                         <Skeleton className="h-10 w-2/3" />
                         <Skeleton className="aspect-[16/10] w-full rounded-md" />
@@ -110,7 +121,7 @@ export default function SpaceDetail({ id }: { id: number }) {
 
             {space && (
                 <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_22rem]">
-                    <div className="min-w-0 space-y-10">
+                    <article className="min-w-0 space-y-10">
                         <header>
                             <div className="flex items-start justify-between gap-4">
                                 <div className="min-w-0">
@@ -195,7 +206,10 @@ export default function SpaceDetail({ id }: { id: number }) {
                                 )}
                             </div>
                             {photos.length > 1 && (
-                                <ul className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                                <ul
+                                    aria-label="Galeria de fotos do espaço"
+                                    className="mt-3 flex gap-2 overflow-x-auto pb-1"
+                                >
                                     {photos.map((photo, index) => (
                                         <li key={photo.id} className="shrink-0">
                                             <button
@@ -273,7 +287,7 @@ export default function SpaceDetail({ id }: { id: number }) {
                             ownerId={space.owner_id}
                             onSummaryChange={onSummaryChange}
                         />
-                    </div>
+                    </article>
 
                     <BookingWidget space={space} />
                 </div>

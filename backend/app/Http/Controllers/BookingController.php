@@ -16,6 +16,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
@@ -29,17 +30,23 @@ class BookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(Booking::ALL_STATUSES)],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ], [
+            'status.in' => 'Status de filtro inválido.',
+        ]);
+
         $query = $request->user()
             ->bookings()
             ->with(['space', 'user'])
             ->latest('start_time');
 
-        $status = $request->query('status');
-        if (is_string($status) && in_array($status, Booking::ALL_STATUSES, true)) {
-            $query->where('status', $status);
+        if (! empty($validated['status'])) {
+            $query->where('status', $validated['status']);
         }
 
-        $perPage = max(1, min(50, (int) $request->query('per_page', 15)));
+        $perPage = (int) ($validated['per_page'] ?? 15);
         $bookings = $query->paginate($perPage);
 
         return BookingResource::collection($bookings);
@@ -113,6 +120,7 @@ class BookingController extends Controller
         $endTime = Carbon::parse($request->validated('end_time'));
 
         try {
+            $this->bookingService->validateNotInPast($startTime);
             $this->bookingService->validateWorkingHours($space, $startTime, $endTime);
             $this->bookingService->validateNoOverlap($space, $startTime, $endTime);
             $price = $this->bookingService->calculateTotalPrice($space, $startTime, $endTime);
@@ -133,12 +141,14 @@ class BookingController extends Controller
                 'message' => $e->getMessage(),
             ], 409);
         } catch (ValidationException $e) {
+            $firstMessage = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+
             return response()->json([
                 'available' => false,
                 'conflict' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
-                'message' => current(current($e->errors())),
+                'message' => $firstMessage,
             ], 422);
         }
     }

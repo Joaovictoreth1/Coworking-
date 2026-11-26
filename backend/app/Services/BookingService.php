@@ -27,13 +27,30 @@ class BookingService
         CarbonInterface $endTime,
         ?int $excludeBookingId = null
     ): void {
+        $startUtc = $startTime->copy()->utc();
+        $endUtc = $endTime->copy()->utc();
+
         $overlapExists = Booking::query()
             ->where('space_id', $space->id)
-            ->overlapping($startTime, $endTime, $excludeBookingId)
+            ->overlapping($startUtc, $endUtc, $excludeBookingId)
             ->exists();
 
         if ($overlapExists) {
             throw BookingConflictException::overlap();
+        }
+    }
+
+    /**
+     * Valida se o horário de início não está no passado.
+     *
+     * @throws ValidationException
+     */
+    public function validateNotInPast(CarbonInterface $startTime): void
+    {
+        if ($startTime->copy()->utc()->lt(now()->utc())) {
+            throw ValidationException::withMessages([
+                'start_time' => ['O horário de início não pode ser no passado.'],
+            ]);
         }
     }
 
@@ -171,7 +188,12 @@ class BookingService
         $startTime = Carbon::parse($data['start_time']);
         $endTime = Carbon::parse($data['end_time']);
 
-        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $data) {
+        $this->validateNotInPast($startTime);
+
+        $startUtc = $startTime->copy()->utc();
+        $endUtc = $endTime->copy()->utc();
+
+        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $startUtc, $endUtc, $data) {
             // Bloqueia a linha do espaço para serializar pedidos concorrentes no mesmo local,
             // inclusive quando ainda não existe nenhuma reserva prévia na tabela bookings.
             $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->first();
@@ -183,15 +205,15 @@ class BookingService
             }
 
             $this->validateWorkingHours($lockedSpace, $startTime, $endTime);
-            $this->validateNoOverlap($lockedSpace, $startTime, $endTime);
+            $this->validateNoOverlap($lockedSpace, $startUtc, $endUtc);
 
-            $totalPrice = $this->calculateTotalPrice($lockedSpace, $startTime, $endTime);
+            $totalPrice = $this->calculateTotalPrice($lockedSpace, $startUtc, $endUtc);
 
             return Booking::create([
                 'user_id' => $user->id,
                 'space_id' => $lockedSpace->id,
-                'start_time' => $startTime,
-                'end_time' => $endTime,
+                'start_time' => $startUtc,
+                'end_time' => $endUtc,
                 'total_price' => $totalPrice,
                 'status' => Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
@@ -282,6 +304,7 @@ class BookingService
     public function getAdminMetrics(): array
     {
         $totalBookings = Booking::count();
+        $pendingBookings = Booking::where('status', Booking::STATUS_PENDING)->count();
         $confirmedBookings = Booking::where('status', Booking::STATUS_CONFIRMED)->count();
         $cancelledBookings = Booking::where('status', Booking::STATUS_CANCELLED)->count();
         $completedBookings = Booking::where('status', Booking::STATUS_COMPLETED)->count();
@@ -305,6 +328,7 @@ class BookingService
 
         return [
             'total_bookings' => $totalBookings,
+            'pending_bookings' => $pendingBookings,
             'confirmed_bookings' => $confirmedBookings,
             'cancelled_bookings' => $cancelledBookings,
             'completed_bookings' => $completedBookings,

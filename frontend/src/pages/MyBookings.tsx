@@ -81,7 +81,13 @@ export default function MyBookings() {
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
 
-    const { data: bookings, isLoading, error, refetch } = useUserBookingsQuery(selectedTab || undefined)
+    const {
+        data: bookings,
+        isLoading,
+        error,
+        refetch,
+        isFetching,
+    } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
 
     async function handleConfirmCancel(bookingId: number) {
@@ -141,16 +147,20 @@ export default function MyBookings() {
                             <BookingCardSkeleton />
                         </>
                     ) : error ? (
-                        <div className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3">
+                        <div
+                            role="alert"
+                            className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3"
+                        >
                             <p className="text-rose-700 font-semibold">
                                 {getErrorMessage(error, 'Não foi possível carregar suas reservas.')}
                             </p>
                             <button
                                 type="button"
                                 onClick={() => void refetch()}
-                                className={secondaryButton}
+                                disabled={isFetching}
+                                className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
                             >
-                                Tentar novamente
+                                {isFetching ? 'Recarregando...' : 'Tentar novamente'}
                             </button>
                         </div>
                     ) : !bookings || bookings.length === 0 ? (

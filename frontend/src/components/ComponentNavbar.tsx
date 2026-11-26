@@ -133,7 +133,10 @@ function UserMenu() {
             triggerClassName="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-100 py-1 pl-1 pr-2.5 text-sm text-slate-800 transition hover:bg-slate-100"
             trigger={
                 <>
-                    <span className="grid h-7 w-7 place-items-center rounded-full bg-indigo-500 text-xs font-semibold text-white">
+                    <span
+                        aria-hidden="true"
+                        className="grid h-7 w-7 place-items-center rounded-full bg-indigo-500 text-xs font-semibold text-white"
+                    >
                         {initial ? initial : <UserIcon className="h-4 w-4" />}
                     </span>
                     <span className="hidden max-w-28 truncate sm:inline">
@@ -152,7 +155,7 @@ function UserMenu() {
                         </div>
                         <hr className="my-1 border-slate-200" />
                         <a href={href('my-bookings')} onClick={close} className={menuItem}>
-                            <span className="text-sm">📅</span>
+                            <span className="text-sm" aria-hidden="true">📅</span>
                             Minhas reservas
                         </a>
                         <a href={href('favorites')} onClick={close} className={menuItem}>
@@ -161,7 +164,7 @@ function UserMenu() {
                         </a>
                         {user.is_admin && (
                             <a href={href('admin-dashboard')} onClick={close} className={menuItem}>
-                                <span className="text-sm">📊</span>
+                                <span className="text-sm" aria-hidden="true">📊</span>
                                 Dashboard Admin
                             </a>
                         )}
@@ -219,7 +222,7 @@ function MobileMenu({ isOpen, onClose, onSearch }: MobileMenuProps) {
             className="absolute left-0 top-16 z-30 w-full border-b border-slate-200 bg-white px-4 pb-4 pt-3 shadow-lg lg:hidden"
         >
             <SearchBar onSearch={onSearch} className="mb-4" />
-            <nav className="flex flex-col gap-1">
+            <nav aria-label="Navegação mobile" className="flex flex-col gap-1">
                 {NAV_LINKS.map((link) => (
                     <a
                         key={link.href}
@@ -286,12 +289,14 @@ export default function ComponentNavbar({ onSearch }: NavbarProps) {
 
                         {/* Meio: links, dropdown e pesquisa (desktop) */}
                         <div className="hidden flex-1 items-center justify-center gap-1 lg:flex">
-                            {NAV_LINKS.map((link) => (
-                                <a key={link.href} href={link.href} className={`${linkBase} py-2`}>
-                                    {link.label}
-                                </a>
-                            ))}
-                            <ResourcesDropdown />
+                            <nav aria-label="Navegação principal" className="flex items-center gap-1">
+                                {NAV_LINKS.map((link) => (
+                                    <a key={link.href} href={link.href} className={`${linkBase} py-2`}>
+                                        {link.label}
+                                    </a>
+                                ))}
+                                <ResourcesDropdown />
+                            </nav>
                             <SearchBar onSearch={onSearch} className="ml-3 w-48 xl:w-64" />
                         </div>
 

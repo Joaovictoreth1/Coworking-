@@ -42,7 +42,7 @@ export function useCreateBookingMutation(spaceId: number) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
-            queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva confirmada com sucesso!')

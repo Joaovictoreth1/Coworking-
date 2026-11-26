@@ -64,9 +64,9 @@ export default function AuthLayout({
                         <p className="mb-8 mt-2 text-slate-600">{subtitle}</p>
                     </header>
                     
-                    <main>
+                    <div>
                         {children}
-                    </main>
+                    </div>
                 </section>
                 
             </div>
