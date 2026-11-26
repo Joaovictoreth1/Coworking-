@@ -14,6 +14,12 @@ class SpaceController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $filters = $request->validate([
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'q' => ['nullable', 'string', 'max:255'],
+            'status' => ['nullable', 'in:active,inactive'],
+        ]);
         $user = $request->user();
         $query = Space::query()->with(['photos', 'user'])->withStats($user)->latest('id');
 
@@ -21,15 +27,15 @@ class SpaceController extends Controller
             $query->where('user_id', $user->id);
         }
 
-        $query->search($request->query('q'));
+        $query->search($filters['q'] ?? null);
 
-        match ($request->query('status')) {
+        match ($filters['status'] ?? null) {
             'active' => $query->where('is_active', true),
             'inactive' => $query->where('is_active', false),
             default => null,
         };
 
-        return SpaceResource::collection($query->paginate(10)->withQueryString());
+        return SpaceResource::collection($query->paginate((int) ($filters['per_page'] ?? 10))->withQueryString());
     }
 
     public function store(SpaceRequest $request): JsonResponse

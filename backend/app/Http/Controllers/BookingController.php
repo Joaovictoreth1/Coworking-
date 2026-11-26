@@ -9,10 +9,11 @@ use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Space;
 use App\Services\BookingService;
-use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
@@ -26,16 +27,24 @@ class BookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $filters = $request->validate([
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
+            'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
+        ]);
+        $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
         $query = $request->user()
             ->bookings()
             ->with(['space', 'user'])
-            ->latest('start_time');
+            ->orderBy('start_time', $direction)
+            ->orderBy('id', $direction);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 15));
+        $bookings = $query->paginate((int) ($filters['per_page'] ?? 15))->withQueryString();
 
         return BookingResource::collection($bookings);
     }
@@ -79,8 +88,8 @@ class BookingController extends Controller
      */
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
-        $reason = $request->input('reason');
-        $updated = $this->bookingService->cancelBooking($booking, $request->user(), $reason);
+        $payload = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
+        $updated = $this->bookingService->cancelBooking($booking, $request->user(), $payload['reason'] ?? null);
         $updated->load(['space', 'user']);
 
         return response()->json([
@@ -92,20 +101,13 @@ class BookingController extends Controller
     /**
      * Prévia em tempo real de disponibilidade e valor estimado.
      */
-    public function preview(Request $request, Space $space): JsonResponse
+    public function preview(StoreBookingRequest $request, Space $space): JsonResponse
     {
-        $request->validate([
-            'start_time' => ['required', 'date'],
-            'end_time' => ['required', 'date', 'after:start_time'],
-        ]);
-
-        $startTime = Carbon::parse($request->input('start_time'));
-        $endTime = Carbon::parse($request->input('end_time'));
+        $startTime = CarbonImmutable::parse($request->validated('start_time'));
+        $endTime = CarbonImmutable::parse($request->validated('end_time'));
 
         try {
-            $this->bookingService->validateWorkingHours($space, $startTime, $endTime);
-            $this->bookingService->validateNoOverlap($space, $startTime, $endTime);
-            $price = $this->bookingService->calculateTotalPrice($space, $startTime, $endTime);
+            $price = $this->bookingService->quote($space, $startTime, $endTime);
 
             return response()->json([
                 'available' => true,
@@ -118,7 +120,7 @@ class BookingController extends Controller
                 'available' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
-                'message' => current(current($e->errors())),
+                'message' => $e->getMessage(),
             ], 422);
         }
     }

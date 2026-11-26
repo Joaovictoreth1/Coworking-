@@ -26,16 +26,22 @@ class ReservationController extends Controller
         $data = $request->validate([
             'scope' => ['nullable', 'in:upcoming,past'],
             'status' => ['nullable', 'in:confirmed,cancelled'],
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'sort' => ['sometimes', 'in:start_asc,start_desc'],
         ]);
         $scope = $data['scope'] ?? null;
+        $sort = $data['sort'] ?? ($scope === 'upcoming' ? 'start_asc' : 'start_desc');
+        $direction = $sort === 'start_asc' ? 'asc' : 'desc';
 
         $list = $request->user()->reservations()
             ->with('space:id,name') // evita N+1 ao listar
             ->when($data['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($scope === 'upcoming', fn ($q) => $q->where('ends_at', '>', now())->orderBy('starts_at'))
-            ->when($scope === 'past', fn ($q) => $q->where('ends_at', '<=', now())->orderByDesc('starts_at'))
-            ->when($scope === null, fn ($q) => $q->orderByDesc('starts_at'))
-            ->paginate(15)
+            ->when($scope === 'upcoming', fn ($q) => $q->where('ends_at', '>', now()))
+            ->when($scope === 'past', fn ($q) => $q->where('ends_at', '<=', now()))
+            ->orderBy('starts_at', $direction)
+            ->orderBy('id', $direction)
+            ->paginate((int) ($data['per_page'] ?? 15))
             ->withQueryString();
 
         return ReservationResource::collection($list);
@@ -104,6 +110,7 @@ class ReservationController extends Controller
     public function forSpace(Request $request, Space $space): AnonymousResourceCollection
     {
         abort_unless($space->manageableBy($request->user()), 404);
+        $request->validate(['page' => ['sometimes', 'integer', 'between:1,100000']]);
 
         return ReservationResource::collection(
             $space->reservations()->with('user:id,name')->orderByDesc('starts_at')->paginate(20)

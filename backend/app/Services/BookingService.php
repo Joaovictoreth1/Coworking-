@@ -21,7 +21,7 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function validateNoOverlap(
+    private function validateNoOverlap(
         Space $space,
         CarbonInterface $startTime,
         CarbonInterface $endTime,
@@ -40,7 +40,7 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function validateWorkingHours(
+    private function validateWorkingHours(
         Space $space,
         CarbonInterface $startTime,
         CarbonInterface $endTime
@@ -92,7 +92,7 @@ class BookingService
     /**
      * Calcula automaticamente o valor total com base na duração e nas tarifas do espaço.
      */
-    public function calculateTotalPrice(
+    private function calculateTotalPrice(
         Space $space,
         CarbonInterface $startTime,
         CarbonInterface $endTime
@@ -132,6 +132,21 @@ class BookingService
         return 0.00;
     }
 
+    public function quote(Space $space, CarbonImmutable $start, CarbonImmutable $end): float
+    {
+        if (! $space->is_active) {
+            throw ValidationException::withMessages([
+                'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
+            ]);
+        }
+
+        $timezone = config('coworking.timezone');
+        $this->validateWorkingHours($space, $start->setTimezone($timezone), $end->setTimezone($timezone));
+        $this->validateNoOverlap($space, $start, $end);
+
+        return $this->calculateTotalPrice($space, $start, $end);
+    }
+
     /**
      * Cria uma nova reserva garantindo concorrência segura (transação + bloqueio).
      *
@@ -139,27 +154,18 @@ class BookingService
      */
     public function createBooking(User $user, Space $space, array $data): Booking
     {
-        $startTime = CarbonImmutable::parse($data['start_time']);
-        $endTime = CarbonImmutable::parse($data['end_time']);
+        $timezone = config('coworking.timezone');
+        $startTime = CarbonImmutable::parse($data['start_time'], $timezone);
+        $endTime = CarbonImmutable::parse($data['end_time'], $timezone);
 
         return $this->schedule->withinLock($space->id, function (Space $space) use ($user, $startTime, $endTime, $data) {
-            if (! $space->is_active) {
-                throw ValidationException::withMessages([
-                    'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
-                ]);
-            }
-
-            $this->validateWorkingHours($space, $startTime, $endTime);
-            $this->validateNoOverlap($space, $startTime, $endTime);
-            $totalPrice = $this->calculateTotalPrice($space, $startTime, $endTime);
-
             return Booking::create([
                 'user_id' => $user->id,
                 'space_id' => $space->id,
                 'start_time' => $startTime->utc(),
                 'end_time' => $endTime->utc(),
-                'total_price' => $totalPrice,
-                'status' => $data['status'] ?? Booking::STATUS_CONFIRMED,
+                'total_price' => $this->quote($space, $startTime, $endTime),
+                'status' => Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
             ]);
         });

@@ -136,6 +136,12 @@ class AdminSpaceTest extends TestCase
             ->assertOk();
         $this->getJson("/api/admin/spaces/{$space->id}/reservations")->assertOk();
         $this->getJson("/api/admin/spaces/{$otherSpace->id}")->assertNotFound();
+
+        $fields = $space->only(['street', 'city', 'state', 'hourly_price', 'opening_hours', 'availability', 'is_active']);
+        $fields['name'] = 'Sala reformada';
+        $this->putJson("/api/admin/spaces/{$space->id}", $fields)->assertOk();
+        $this->assertSame('Sala reformada', $space->refresh()->name);
+        $this->putJson("/api/admin/spaces/{$otherSpace->id}", $fields)->assertNotFound();
     }
 
     public function test_admin_can_update_booking_status(): void

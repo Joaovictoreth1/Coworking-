@@ -23,35 +23,47 @@ class AdminBookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $filters = $request->validate([
+            'page' => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page' => ['sometimes', 'integer', 'between:1,100'],
+            'status' => ['sometimes', Rule::in(Booking::ALL_STATUSES)],
+            'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
+            'space_id' => ['sometimes', 'integer', 'min:1'],
+            'from_date' => ['sometimes', 'date_format:Y-m-d'],
+            'to_date' => ['sometimes', 'date_format:Y-m-d', Rule::when($request->has('from_date'), 'after_or_equal:from_date')],
+            'search' => ['nullable', 'string', 'max:120'],
+        ]);
+        $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
         $query = Booking::query()
             ->with(['space', 'user'])
-            ->latest('start_time');
+            ->orderBy('start_time', $direction)
+            ->orderBy('id', $direction);
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
         }
 
-        if ($request->filled('space_id')) {
-            $query->where('space_id', (int) $request->query('space_id'));
+        if (isset($filters['space_id'])) {
+            $query->where('space_id', (int) $filters['space_id']);
         }
 
-        if ($request->filled('from_date')) {
-            $query->whereDate('start_time', '>=', $request->query('from_date'));
+        if (isset($filters['from_date'])) {
+            $query->where('start_time', '>=', $filters['from_date'].' 00:00:00');
         }
 
-        if ($request->filled('to_date')) {
-            $query->whereDate('end_time', '<=', $request->query('to_date'));
+        if (isset($filters['to_date'])) {
+            $query->where('end_time', '<=', $filters['to_date'].' 23:59:59');
         }
 
-        if ($request->filled('search')) {
-            $term = '%' . $request->query('search') . '%';
+        if (isset($filters['search'])) {
+            $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
                   ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 20));
+        $bookings = $query->paginate((int) ($filters['per_page'] ?? 20))->withQueryString();
 
         return BookingResource::collection($bookings);
     }

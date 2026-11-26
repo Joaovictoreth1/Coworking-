@@ -14,6 +14,7 @@ class SpaceReviewController extends Controller
     public function index(Request $request, Space $space): AnonymousResourceCollection
     {
         abort_unless($space->is_active, 404);
+        $request->validate(['page' => ['sometimes', 'integer', 'between:1,100000']]);
 
         $reviews = $space->reviews()
             ->with('user:id,name')

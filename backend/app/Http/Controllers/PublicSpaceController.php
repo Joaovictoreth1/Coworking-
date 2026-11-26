@@ -13,6 +13,8 @@ class PublicSpaceController extends Controller
     {
         // 1. Validação centralizada e segura dos parâmetros da URL
         $validated = $request->validate([
+            'page'       => ['sometimes', 'integer', 'between:1,100000'],
+            'per_page'   => ['sometimes', 'integer', 'between:1,100'],
             'q'          => ['nullable', 'string', 'max:255'],
             'price_type' => ['nullable', 'in:free,hourly,daily,monthly'],
             'min_price'  => ['nullable', 'numeric', 'min:0'],
@@ -50,7 +52,7 @@ class PublicSpaceController extends Controller
             default      => $query->latest('id'),
         };
 
-        return SpaceResource::collection($query->paginate(15)->withQueryString());
+        return SpaceResource::collection($query->paginate((int) ($validated['per_page'] ?? 15))->withQueryString());
     }
 
     public function show(Request $request, Space $space): SpaceResource

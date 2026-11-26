@@ -13,6 +13,7 @@ class FavoriteController extends Controller
     /** Locais favoritados pelo usuário logado (mais recentes primeiro). Só os ativos aparecem. */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $request->validate(['page' => ['sometimes', 'integer', 'between:1,100000']]);
         $user = $request->user();
 
         $spaces = $user->favoriteSpaces()
