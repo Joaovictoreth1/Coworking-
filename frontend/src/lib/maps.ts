@@ -38,10 +38,14 @@ export function getGoogleMapsEmbedUrl(
 }
 
 export function getSaoPauloCityMapEmbedUrl(neighborhood?: string): string {
-    const query = neighborhood?.trim()
-        ? `${neighborhood.trim()}, São Paulo, SP, Brasil`
-        : 'Coworking São Paulo, SP, Brasil'
-    const zoom = neighborhood?.trim() ? 14 : 12
+    const normalized = neighborhood?.trim().toLowerCase() ?? ''
+    const matchedHub = SAO_PAULO_HUBS.find(
+        (hub) => hub.query.toLowerCase() === normalized && hub.query !== 'São Paulo',
+    )
+    const query = matchedHub
+        ? `${matchedHub.query}, São Paulo, SP, Brasil`
+        : 'São Paulo, SP, Brasil'
+    const zoom = matchedHub ? 14 : 12
     return `https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=${zoom}&hl=pt-BR&output=embed`
 }
 
