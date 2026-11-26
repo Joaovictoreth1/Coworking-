@@ -7,15 +7,14 @@ use App\Models\Space;
 use App\Models\SpaceReview;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    public const PASSWORD = '12345678';
     public const ADMIN_EMAIL = 'admin@teste.com';
 
     private const USERS = [
@@ -81,20 +80,22 @@ class DatabaseSeeder extends Seeder
     private const HOURLY = [25, 35, 45, 60, 80, 120, 150];
 
     /**
-     * Pode rodar várias vezes: recria/atualiza os usuários (senha padrão 12345678)
+     * Pode rodar várias vezes: recria/atualiza os usuários
      * e só cria os locais de quem ainda não tem nenhum.
      */
     public function run(): void
     {
-        // Este seeder cria contas com senha pública; nunca pode rodar em produção.
-        // O primeiro admin de produção é criado com: php artisan coworking:create-admin
-        if (app()->isProduction()) {
+        if (! app()->environment('local', 'testing')) {
             throw new \RuntimeException('DatabaseSeeder é apenas para desenvolvimento. Use coworking:create-admin.');
+        }
+        $password = config('coworking.demo_password');
+        if (! is_string($password) || strlen($password) < 16 || strlen($password) > 72) {
+            throw new \RuntimeException('Defina COWORKING_DEMO_PASSWORD com 16 a 72 bytes para popular a demonstração.');
         }
 
         $admin = User::updateOrCreate(
             ['email' => self::ADMIN_EMAIL],
-            ['name' => 'Admin', 'password' => self::PASSWORD],
+            ['name' => 'Admin', 'password' => $password],
         );
         // role não é mass-assignable de propósito (o cadastro público não pode criar admins).
         $admin->forceFill(['role' => User::ROLE_ADMIN])->save();
@@ -104,7 +105,7 @@ class DatabaseSeeder extends Seeder
         foreach (self::USERS as $index => [$name, $email]) {
             $user = User::updateOrCreate(
                 ['email' => $email],
-                ['name' => $name, 'password' => self::PASSWORD],
+                ['name' => $name, 'password' => $password],
             );
             $user->forceFill(['role' => User::ROLE_USER])->save();
 
@@ -125,7 +126,7 @@ class DatabaseSeeder extends Seeder
         $this->createBookings($users);
 
         $this->command?->info('Admin: '.self::ADMIN_EMAIL.' | Usuários: '
-            .implode(', ', array_column(self::USERS, 1)).' | Senha de todos: '.self::PASSWORD);
+            .implode(', ', array_column(self::USERS, 1)));
     }
 
     private function createSpaces(User $user, int $userIndex): void
