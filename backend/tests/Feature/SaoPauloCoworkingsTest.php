@@ -78,9 +78,12 @@ class SaoPauloCoworkingsTest extends TestCase
             'availability' => $space->availability,
         ];
 
-        // Alterar apenas preço mantém as coordenadas existentes
+        // Alterar apenas preço ou CEP mantém as coordenadas existentes
         $this->withToken($token)
-            ->putJson("/api/admin/spaces/{$space->id}", $basePayload)
+            ->putJson("/api/admin/spaces/{$space->id}", [
+                ...$basePayload,
+                'zip_code' => '01310-916',
+            ])
             ->assertOk()
             ->assertJsonPath('data.latitude', -23.5629)
             ->assertJsonPath('data.longitude', -46.6544);

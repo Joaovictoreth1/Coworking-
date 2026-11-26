@@ -71,7 +71,7 @@ class SpaceController extends Controller
         $this->authorizeSpace($request, $space);
         $data = $request->validated();
 
-        $addressFields = ['zip_code', 'street', 'number', 'neighborhood', 'city', 'state'];
+        $addressFields = ['street', 'number', 'city', 'state'];
         $addressChanged = false;
         foreach ($addressFields as $field) {
             if (array_key_exists($field, $data) && (string) ($data[$field] ?? '') !== (string) ($space->{$field} ?? '')) {
