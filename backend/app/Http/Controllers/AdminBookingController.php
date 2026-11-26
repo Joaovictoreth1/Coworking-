@@ -59,7 +59,7 @@ class AdminBookingController extends Controller
             $term = '%'.$filters['search'].'%';
             $query->where(function ($q) use ($term) {
                 $q->whereHas('user', fn ($uq) => $uq->where('name', 'like', $term)->orWhere('email', 'like', $term))
-                  ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
+                    ->orWhereHas('space', fn ($sq) => $sq->where('name', 'like', $term));
             });
         }
 

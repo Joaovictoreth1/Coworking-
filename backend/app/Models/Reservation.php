@@ -2,19 +2,30 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
+use Database\Factories\ReservationFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon $starts_at
+ * @property Carbon $ends_at
+ * @property Carbon|null $cancelled_at
+ */
 class Reservation extends Model
 {
+    /** @use HasFactory<ReservationFactory> */
     use HasFactory;
 
     public const STATUS_CONFIRMED = 'confirmed';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     public const RATE_HOURLY = 'hourly';
+
     public const RATE_DAILY = 'daily';
 
     protected $fillable = [
@@ -31,13 +42,21 @@ class Reservation extends Model
         ];
     }
 
+    /**
+     * @param  Builder<Reservation>  $query
+     * @return Builder<Reservation>
+     */
     public function scopeConfirmed(Builder $query): Builder
     {
         return $query->where('status', self::STATUS_CONFIRMED);
     }
 
     /** Reservas confirmadas que se sobrepõem ao intervalo [start, end) (extremos encostados não conflitam). */
-    public function scopeOverlapping(Builder $query, $start, $end): Builder
+    /**
+     * @param  Builder<Reservation>  $query
+     * @return Builder<Reservation>
+     */
+    public function scopeOverlapping(Builder $query, CarbonInterface $start, CarbonInterface $end): Builder
     {
         return $query->confirmed()->where('starts_at', '<', $end)->where('ends_at', '>', $start);
     }
@@ -47,11 +66,13 @@ class Reservation extends Model
         return $this->status === self::STATUS_CANCELLED;
     }
 
+    /** @return BelongsTo<Space, $this> */
     public function space(): BelongsTo
     {
         return $this->belongsTo(Space::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

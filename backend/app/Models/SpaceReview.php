@@ -14,11 +14,13 @@ class SpaceReview extends Model
         return ['rating' => 'integer'];
     }
 
+    /** @return BelongsTo<Space, $this> */
     public function space(): BelongsTo
     {
         return $this->belongsTo(Space::class);
     }
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

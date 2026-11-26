@@ -3,19 +3,21 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Carbon;
 
+/**
+ * @property Carbon|null $last_used_at
+ * @property Carbon|null $expires_at
+ */
 class ApiToken extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
-        'user_id', 
-        'name', 
-        'token', 
-        'last_used_at', 
+        'user_id',
+        'name',
+        'token',
+        'last_used_at',
         'expires_at',
     ];
 
@@ -50,16 +52,21 @@ class ApiToken extends Model
     /**
      * Escopo para buscar apenas tokens válidos (não expirados).
      */
+    /**
+     * @param  Builder<ApiToken>  $query
+     * @return Builder<ApiToken>
+     */
     public function scopeValid(Builder $query): Builder
     {
         return $query->where(function (Builder $q) {
             $q->whereNull('expires_at')
-              ->orWhere('expires_at', '>', now());
+                ->orWhere('expires_at', '>', now());
         });
     }
 
     // --- Relações ---
 
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

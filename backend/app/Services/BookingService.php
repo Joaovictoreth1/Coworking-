@@ -150,6 +150,8 @@ class BookingService
     /**
      * Cria uma nova reserva garantindo concorrência segura (transação + bloqueio).
      *
+     * @param  array{start_time: string, end_time: string, notes?: string|null}  $data
+     *
      * @throws ValidationException
      */
     public function createBooking(User $user, Space $space, array $data): Booking
@@ -218,6 +220,7 @@ class BookingService
     /**
      * Retorna métricas consolidadas para o Dashboard do Administrador.
      */
+    /** @return array<string, mixed> */
     public function getAdminMetrics(): array
     {
         $totalBookings = Booking::count();

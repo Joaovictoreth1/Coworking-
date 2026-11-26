@@ -27,7 +27,7 @@ class SpacePhotoController extends Controller
 
     public function store(Request $request, Space $space): JsonResponse
     {
-        abort_unless($space->manageableBy($request->user()), 404);
+        abort_unless($space->manageableBy($this->authenticatedUser($request)), 404);
 
         $request->validate([
             'photos' => ['required', 'array', 'min:1', 'max:'.Space::MAX_PHOTOS],
@@ -68,7 +68,7 @@ class SpacePhotoController extends Controller
     /** Recebe os ids das fotos na ordem desejada; a primeira vira a capa. */
     public function reorder(Request $request, Space $space): SpaceResource
     {
-        abort_unless($space->manageableBy($request->user()), 404);
+        abort_unless($space->manageableBy($this->authenticatedUser($request)), 404);
 
         $data = $request->validate([
             'ids' => ['required', 'array', 'max:'.Space::MAX_PHOTOS],
@@ -85,7 +85,7 @@ class SpacePhotoController extends Controller
 
     public function destroy(Request $request, Space $space, SpacePhoto $photo): SpaceResource
     {
-        abort_unless($space->manageableBy($request->user()), 404);
+        abort_unless($space->manageableBy($this->authenticatedUser($request)), 404);
         abort_unless($photo->space_id === $space->id, 404);
 
         Storage::disk('public')->delete($photo->path);

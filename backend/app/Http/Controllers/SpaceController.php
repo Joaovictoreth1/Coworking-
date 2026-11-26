@@ -20,7 +20,7 @@ class SpaceController extends Controller
             'q' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'in:active,inactive'],
         ]);
-        $user = $request->user();
+        $user = $this->authenticatedUser($request);
         $query = Space::query()->with(['photos', 'user'])->withStats($user)->latest('id');
 
         if (! $user->isAdmin()) {
@@ -40,13 +40,13 @@ class SpaceController extends Controller
 
     public function store(SpaceRequest $request): JsonResponse
     {
-        if (! $request->user()->isAdmin()) {
+        if (! $this->authenticatedUser($request)->isAdmin()) {
             abort(403, 'Acesso restrito a administradores.');
         }
 
         $space = Space::create([
             ...$request->validated(),
-            'user_id' => $request->user()->id,
+            'user_id' => $this->authenticatedUser($request)->id,
         ]);
 
         return (new SpaceResource($space->load('photos')))
@@ -86,6 +86,6 @@ class SpaceController extends Controller
     private function authorizeSpace(Request $request, Space $space): void
     {
         // 404 (e não 403) para não revelar que o local existe
-        abort_unless($space->manageableBy($request->user()), 404);
+        abort_unless($space->manageableBy($this->authenticatedUser($request)), 404);
     }
 }

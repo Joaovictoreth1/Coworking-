@@ -34,7 +34,7 @@ class BookingController extends Controller
             'sort' => ['sometimes', Rule::in(['start_asc', 'start_desc'])],
         ]);
         $direction = ($filters['sort'] ?? null) === 'start_asc' ? 'asc' : 'desc';
-        $query = $request->user()
+        $query = $this->authenticatedUser($request)
             ->bookings()
             ->with(['space', 'user'])
             ->orderBy('start_time', $direction)
@@ -55,9 +55,13 @@ class BookingController extends Controller
     public function store(StoreBookingRequest $request, Space $space): JsonResponse
     {
         $booking = $this->bookingService->createBooking(
-            $request->user(),
+            $this->authenticatedUser($request),
             $space,
-            $request->validated()
+            [
+                'start_time' => $request->validated('start_time'),
+                'end_time' => $request->validated('end_time'),
+                'notes' => $request->validated('notes'),
+            ]
         );
 
         $booking->load(['space', 'user']);
@@ -72,7 +76,7 @@ class BookingController extends Controller
      */
     public function show(Request $request, Booking $booking): BookingResource
     {
-        $user = $request->user();
+        $user = $this->authenticatedUser($request);
 
         if (! $user->isAdmin() && $booking->user_id !== $user->id) {
             abort(403, 'Acesso não autorizado a esta reserva.');
@@ -89,7 +93,7 @@ class BookingController extends Controller
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
         $payload = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
-        $updated = $this->bookingService->cancelBooking($booking, $request->user(), $payload['reason'] ?? null);
+        $updated = $this->bookingService->cancelBooking($booking, $this->authenticatedUser($request), $payload['reason'] ?? null);
         $updated->load(['space', 'user']);
 
         return response()->json([

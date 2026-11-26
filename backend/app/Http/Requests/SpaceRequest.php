@@ -34,6 +34,7 @@ class SpaceRequest extends FormRequest
         }
     }
 
+    /** @return array<string, list<mixed>> */
     public function rules(): array
     {
         return [
@@ -64,6 +65,7 @@ class SpaceRequest extends FormRequest
         ];
     }
 
+    /** @return array<string, list<string>> */
     private function scheduleRules(string $field): array
     {
         // Horários (from/to) só são exigidos nos dias marcados: isso é conferido em after().
@@ -76,6 +78,7 @@ class SpaceRequest extends FormRequest
         ];
     }
 
+    /** @return list<\Closure(Validator): void> */
     public function after(): array
     {
         return [

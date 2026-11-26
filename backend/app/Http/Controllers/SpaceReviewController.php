@@ -38,7 +38,7 @@ class SpaceReviewController extends Controller
     {
         abort_unless($space->is_active, 404);
 
-        $user = $request->user();
+        $user = $this->authenticatedUser($request);
 
         if ($space->user_id === $user->id) {
             return response()->json(['message' => 'Você não pode avaliar o seu próprio local.'], 403);
@@ -69,10 +69,11 @@ class SpaceReviewController extends Controller
 
     public function destroy(Request $request, Space $space, SpaceReview $review): JsonResponse
     {
+        $user = $this->authenticatedUser($request);
         // 404 (e não 403) se a avaliação não é deste local ou não é de quem pediu (admin pode moderar)
         abort_unless(
             $review->space_id === $space->id
-                && ($review->user_id === $request->user()->id || $request->user()->isAdmin()),
+                && ($review->user_id === $user->id || $user->isAdmin()),
             404,
         );
 
@@ -82,6 +83,7 @@ class SpaceReviewController extends Controller
     }
 
     /** Média, total e quantas avaliações cada nota (1 a 5) recebeu. */
+    /** @return array<string, mixed> */
     private function summary(Space $space): array
     {
         $counts = $space->reviews()

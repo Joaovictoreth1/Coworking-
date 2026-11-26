@@ -7,9 +7,10 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 
@@ -26,6 +27,7 @@ class User extends Authenticatable
      * @return array<string, string>
      */
     public const ROLE_ADMIN = 'admin';
+
     public const ROLE_USER = 'user';
 
     public function isAdmin(): bool
@@ -38,31 +40,37 @@ class User extends Authenticatable
         return $this->isAdmin();
     }
 
+    /** @return HasMany<Space, $this> */
     public function spaces(): HasMany
     {
         return $this->hasMany(Space::class);
     }
 
+    /** @return BelongsToMany<Space, $this, Pivot> */
     public function favoriteSpaces(): BelongsToMany
     {
         return $this->belongsToMany(Space::class, 'favorites')->withTimestamps();
     }
 
+    /** @return HasMany<SpaceReview, $this> */
     public function reviews(): HasMany
     {
         return $this->hasMany(SpaceReview::class);
     }
 
+    /** @return HasMany<Reservation, $this> */
     public function reservations(): HasMany
     {
         return $this->hasMany(Reservation::class);
     }
 
+    /** @return HasMany<Booking, $this> */
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
     }
 
+    /** @return HasMany<ApiToken, $this> */
     public function apiTokens(): HasMany
     {
         return $this->hasMany(ApiToken::class);

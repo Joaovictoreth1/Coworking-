@@ -7,15 +7,16 @@ use App\Models\Space;
 use App\Models\SpaceReview;
 use App\Models\User;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
     public const PASSWORD = '12345678';
+
     public const ADMIN_EMAIL = 'admin@teste.com';
 
     private const USERS = [
@@ -217,6 +218,7 @@ class DatabaseSeeder extends Seeder
     }
 
     /** Avaliações de exemplo (só se ainda não existir nenhuma): cada local ativo recebe de 0 a 3. */
+    /** @param list<User> $users */
     private function createReviews(array $users): void
     {
         if (SpaceReview::query()->exists()) {
@@ -242,6 +244,7 @@ class DatabaseSeeder extends Seeder
     }
 
     /** Alguns favoritos de exemplo para cada usuário (só se a tabela estiver vazia). */
+    /** @param list<User> $users */
     private function createFavorites(array $users): void
     {
         if (DB::table('favorites')->exists()) {
@@ -267,19 +270,20 @@ class DatabaseSeeder extends Seeder
     }
 
     /** Algumas reservas de exemplo para popular métricas e o histórico do cliente. */
+    /** @param list<User> $users */
     private function createBookings(array $users): void
     {
         if (Booking::exists()) {
             return;
         }
 
-        $spaces = Space::query()->where('is_active', true)->take(8)->get();
-        if ($spaces->isEmpty()) {
+        $spaces = Space::query()->where('is_active', true)->take(8)->get()->all();
+        if ($spaces === []) {
             return;
         }
 
         foreach ($users as $i => $user) {
-            $space = $spaces[$i % $spaces->count()];
+            $space = $spaces[$i % count($spaces)];
             $hourly = (float) ($space->hourly_price ?? 50.0);
 
             // 1. Reserva Concluída no Passado
@@ -298,7 +302,7 @@ class DatabaseSeeder extends Seeder
             // 2. Reserva Ativa Futura (Confirmada)
             $futureStart = Carbon::now()->addDays(2 + $i)->setHour(9)->setMinute(0)->setSecond(0);
             $futureEnd = (clone $futureStart)->addHours(4);
-            $altSpace = $spaces[($i + 1) % $spaces->count()];
+            $altSpace = $spaces[($i + 1) % count($spaces)];
             $altHourly = (float) ($altSpace->hourly_price ?? 60.0);
             Booking::create([
                 'user_id' => $user->id,
@@ -325,7 +329,10 @@ class DatabaseSeeder extends Seeder
         }
     }
 
-    /** @param int[] $enabledDays 0 = domingo ... 6 = sábado */
+    /**
+     * @param  int[]  $enabledDays
+     * @return list<array{day: int, enabled: bool, from: string, to: string}>
+     */
     private function schedule(array $enabledDays, string $from, string $to): array
     {
         return array_map(fn (int $day) => [

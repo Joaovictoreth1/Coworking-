@@ -114,6 +114,7 @@ class ReservationService
         ];
     }
 
+    /** @return array{start: CarbonImmutable, end: CarbonImmutable, total: float} */
     private function hourly(Space $space, CarbonImmutable $start, CarbonImmutable $end, float $price): array
     {
         $slot = (int) config('coworking.reservations.slot_minutes');
@@ -148,6 +149,7 @@ class ReservationService
         return ['start' => $start, 'end' => $end, 'total' => $price * $minutes / 60];
     }
 
+    /** @return array{start: CarbonImmutable, end: CarbonImmutable, total: float} */
     private function daily(Space $space, CarbonImmutable $start, CarbonImmutable $end, float $price): array
     {
         $max = (int) config('coworking.reservations.max_days');

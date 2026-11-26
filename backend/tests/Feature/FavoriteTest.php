@@ -60,4 +60,3 @@ class FavoriteTest extends TestCase
         $response->assertStatus(401);
     }
 }
-
