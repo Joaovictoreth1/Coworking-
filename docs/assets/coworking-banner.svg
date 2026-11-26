@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="300" viewBox="0 0 1120 300" role="img" aria-labelledby="title description">
+  <title id="title">Coworking</title>
+  <desc id="description">Plataforma de espaços e reservas. Símbolo com quatro salas, uma delas em destaque.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1" gradientUnits="objectBoundingBox">
+      <stop stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#123c43"/>
+    </linearGradient>
+    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
+      <path d="M28 0H0V28" fill="none" stroke="#8af1d1" stroke-opacity=".16"/>
+    </pattern>
+    <clipPath id="frame"><rect width="1120" height="300" rx="24"/></clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <rect width="1120" height="300" fill="url(#background)"/>
+    <path fill="url(#grid)" d="M755 0h365v300H664z"/>
+    <path d="M786 224h116v-46h112v-68h106" fill="none" stroke="#77e6c0" stroke-width="2" stroke-opacity=".35"/>
+    <circle cx="902" cy="178" r="4" fill="#77e6c0"/>
+    <circle cx="1014" cy="110" r="4" fill="#77e6c0"/>
+    <rect x="64" y="89" width="120" height="120" rx="25" fill="#143c3e" stroke="#77e6c0" stroke-opacity=".5"/>
+    <g fill="none" stroke="#9cefd4" stroke-width="2.5">
+      <rect x="92" y="117" width="27" height="27" rx="5"/>
+      <rect x="129" y="117" width="27" height="27" rx="5"/>
+      <rect x="92" y="154" width="27" height="27" rx="5"/>
+    </g>
+    <rect x="129" y="154" width="27" height="27" rx="5" fill="#77e6c0"/>
+    <path d="m136 168 4 4 9-10" fill="none" stroke="#123c43" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <g font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+      <text x="216" y="102" fill="#9cefd4" font-size="16" font-weight="650" letter-spacing="3">PROJETO DE PORTFÓLIO</text>
+      <text x="211" y="172" fill="#f4faf8" font-size="72" font-weight="750" letter-spacing="-3">Coworking</text>
+      <text x="216" y="216" fill="#c7ddd9" font-size="25">Plataforma de espaços e reservas</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,21 @@
+name: Sugerir uma melhoria
+description: Proponha uma mudança e explique o problema que ela resolve.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Quem é afetado e em qual situação?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposta e critérios de aceitação
+      description: Descreva o resultado esperado e como será possível verificá-lo.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas

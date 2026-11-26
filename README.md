@@ -1,195 +1,204 @@
-# 🏢 Coworking Platform — Sistema Completo de Gestão e Reservas
+![Coworking — Plataforma de espaços e reservas](docs/assets/coworking-banner.svg)
 
-[![CI — Continuous Integration](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml/badge.svg)](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml)
-[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-36%20passed%20%2F%20148%20assertions-emerald?style=flat-square&logo=php)](backend/)
-[![Frontend Build](https://img.shields.io/badge/Frontend-Vite%20%2B%20React%2019%20Build%20OK-blue?style=flat-square&logo=react)](frontend/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Type%20Safe-blue?style=flat-square&logo=typescript)](frontend/)
-[![Laravel](https://img.shields.io/badge/Laravel-13.x%20(PHP%208.4)-red?style=flat-square&logo=laravel)](backend/)
-[![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4-38bdf8?style=flat-square&logo=tailwindcss)](frontend/)
+# Coworking
 
-Uma plataforma moderna e escalável para **descoberta, agendamento e gerenciamento de espaços de coworking, salas de reunião, escritórios privativos e auditórios**. 
+[![Integração contínua](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml)
+[![Backend](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/laravel.yml/badge.svg?branch=main)](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/laravel.yml)
+[![Licença MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-0f766e)](LICENSE)
+[![Laravel 13](https://img.shields.io/badge/Laravel-13-FF2D20?logo=laravel&logoColor=white)](backend/composer.json)
+[![React 19](https://img.shields.io/badge/React-19-087ea4?logo=react&logoColor=white)](frontend/package.json)
+[![Flutter](https://img.shields.io/badge/mobile-Flutter-02569B?logo=flutter&logoColor=white)](mobile/pubspec.yaml)
 
-A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 19 com TypeScript**, **Mobile em Flutter** e banco de dados relacional com validação estrita contra **conflitos de horário (Double-Booking)**.
+Projeto de portfólio para descoberta e reserva de espaços de coworking. Visitantes podem explorar o catálogo e consultar disponibilidade. Clientes autenticados podem fazer reservas, salvar favoritos e avaliar espaços. Administradores gerenciam o catálogo, acompanham reservas e consultam métricas. O frontend web e o app Flutter usam a mesma API Laravel.
 
----
+- [Funcionalidades](#funcionalidades)
+- [Arquitetura](#arquitetura)
+- [Início rápido](#início-rápido)
+- [Configuração](#configuração)
+- [API](#api)
+- [Testes e CI](#testes-e-ci)
+- [Roadmap e contribuição](#roadmap-e-contribuição)
 
-## 📐 Arquitetura do Sistema
+## Funcionalidades
 
+| Área | O que está implementado |
+| --- | --- |
+| Catálogo | Busca e filtros, detalhes do espaço, fotos, comodidades, avaliações e consulta de disponibilidade. |
+| Reservas | Simulação de preço, criação, histórico e cancelamento. O fluxo valida horários e intervalos sobrepostos; há espaços gratuitos e tarifas por hora ou diária. |
+| Conta | Cadastro, login por token Bearer, favoritos e publicação ou remoção de avaliações. |
+| Gestão | Cadastro de espaços por administradores, gestão de espaços e fotos por administrador ou proprietário, e painel administrativo de reservas e métricas. |
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    Web["Frontend web · React + TypeScript"]
+    Mobile["App mobile · Flutter"]
+    API["API REST · Laravel"]
+    Domain["Serviços de domínio · reservas e disponibilidade"]
+    DB[("SQLite · padrão local / MySQL · produção")]
+    Files["Armazenamento de fotos"]
+
+    Web -->|"HTTP / JSON"| API
+    Mobile -->|"HTTP / JSON"| API
+    API --> Domain
+    Domain --> DB
+    API --> DB
+    API --> Files
 ```
-                  ┌────────────────────────────────────────┐
-                  │          React 19 + TypeScript         │
-                  │   Vite, TailwindCSS, TanStack Query,   │
-                  │             Zustand Stores             │
-                  └───────────────────┬────────────────────┘
-                                      │ HTTP / JSON (Bearer Token)
-                                      ▼
-                  ┌────────────────────────────────────────┐
-                  │            Laravel 13 API              │
-                  │      PHP 8.4, Service Layer, ORM       │
-                  ├────────────────────────────────────────┤
-                  │  • BookingService (Double-Booking Lock)│
-                  │  • AuthenticateApiToken & EnsureAdmin  │
-                  │  • FormRequests & API Resources        │
-                  └───────────────────┬────────────────────┘
-                                      │
-                   ┌──────────────────┴──────────────────┐
-                   ▼                                     ▼
-        ┌─────────────────────┐               ┌─────────────────────┐
-        │     MySQL 8.0       │               │   SQLite In-Memory  │
-        │   (Docker Prod/Dev) │               │   (Testes Rápidos)  │
-        └─────────────────────┘               └─────────────────────┘
+
+**Decisões de implementação.** Os clientes consomem rotas públicas ou enviam um token Bearer nas rotas autenticadas. A API valida a entrada e decide o acesso; a interface não é a fronteira de autorização. O repositório mantém os fluxos `bookings` e `reservations` separados, com regras em `BookingService` e `ReservationService`. Ambos verificam sobreposição; a suíte de concorrência em MySQL complementa os testes em SQLite, que não reproduzem o mesmo comportamento de bloqueios.
+
+| Camada | Tecnologias |
+| --- | --- |
+| Backend | PHP 8.4, Laravel 13, Eloquent e PHPUnit |
+| Web | React 19, TypeScript, Vite 8, Tailwind CSS 4 e ESLint |
+| Mobile | Flutter e Dart |
+| Dados e infraestrutura | SQLite, MySQL 8, Docker Compose e GitHub Actions |
+
+```text
+backend/       API Laravel, migrações, seeders e testes
+frontend/      Aplicação web React, estilos e configuração Vite
+mobile/        Aplicação Flutter e testes de widgets
+docs/assets/   Identidade visual da documentação
+.github/       Workflows de CI e modelos de contribuição
 ```
 
----
+## Início rápido
 
-## ⚡ Regras de Negócio Críticas
+### Backend e web com Docker Compose
 
-1. **Blindagem contra Double-Booking (Conflito de Horário):**
-   - O `BookingService` executa validação matemática de sobreposição: uma reserva sobrepõe outra se `[start_time < new_end]` e `[end_time > new_start]`.
-   - Utiliza **Lock Pessimista (`lockForUpdate`)** e transações no banco de dados para eliminar qualquer risco de *Race Condition* sob concorrência simultânea.
-   - Tentativas de sobreposição retornam status **`422 Unprocessable Entity`** com mensagem clara de erro.
-2. **Cálculo Automático de Tarifação:**
-   - Calcula a duração em horas (`ceil(diffInMinutes / 60)`).
-   - Aplica tarifas por hora (`hourly_price`), pacotes de diárias (`daily_price`) ou modalidade gratuita (`is_free`).
-3. **Controle de Acesso Baseado em Papéis (RBAC):**
-   - `admin`: Gerenciamento completo de todos os espaços (CRUD), aprovação/rejeição de reservas e acesso a KPIs consolidados.
-   - `cliente` / `user`: Descoberta pública de espaços, simulação de preços em tempo real, criação e cancelamento de suas próprias reservas.
-4. **Ciclo de Vida das Reservas:**
-   - Estados: `pending` ➔ `confirmed` ➔ `completed` ou `cancelled`.
-
----
-
-## 🔑 Credenciais de Teste (Populadas via Seeder)
-
-O banco de dados já conta com seeders realistas contendo dezenas de espaços, fotos, comodidades, avaliações e reservas pré-configuradas:
-
-| Perfil | E-mail | Senha | Papel |
-|---|---|---|---|
-| **Administrador** | `admin@teste.com` | `12345678` | Administrador geral do sistema |
-| **Cliente 1** | `ana@teste.com` | `12345678` | Usuário comum / Locatário |
-| **Cliente 2** | `bruno@teste.com` | `12345678` | Usuário comum / Locatário |
-| **Cliente 3** | `carla@teste.com` | `12345678` | Usuário comum / Locatário |
-
----
-
-## 🚀 Como Executar o Projeto Localmente
-
-### Opção 1: Via Docker Compose (Recomendado)
-
-Todo o ecossistema (Backend, Frontend, MySQL e PhpMyAdmin) sobe com um único comando:
+Pré-requisitos: Git, Docker e o plugin Docker Compose. A partir de um clone novo:
 
 ```bash
-# Na raiz do projeto:
-docker compose up -d
+git clone https://github.com/Joaovictoreth1/Coworking-.git
+cd Coworking-
+touch backend/database/database.sqlite
+docker compose up -d --build
+docker compose logs -f backend frontend
 ```
 
-| Serviço | URL Local | Descrição |
-|---|---|---|
-| **Frontend Web** | [http://localhost:5173](http://localhost:5173) | Interface React com Hot Reload |
-| **Backend API** | [http://localhost:8000](http://localhost:8000) | Servidor Laravel 13 |
-| **PhpMyAdmin** | [http://localhost:8081](http://localhost:8081) | Gerenciador do banco MySQL |
-| **MySQL Database** | `localhost:3306` | Banco de dados relacional |
+Na primeira subida, o backend instala dependências, prepara o ambiente e carrega os dados de demonstração. Aguarde os serviços anunciarem que estão ouvindo antes de abrir a aplicação.
 
----
+| Serviço | Endereço |
+| --- | --- |
+| Aplicação web | <http://localhost:5173> |
+| API | <http://localhost:8000/api/spaces> |
+| Verificação de saúde | <http://localhost:8000/up> |
+| phpMyAdmin (opcional) | <http://localhost:8081>, com `docker compose --profile tools up -d` |
 
-### Opção 2: Execução Nativa Separada
+Por padrão, o Laravel usa SQLite em `backend/database/database.sqlite`. O Compose também sobe MySQL; para usá-lo no desenvolvimento, configure `backend/.env` com `DB_CONNECTION=mysql`, `DB_HOST=db`, `DB_PORT=3306`, `DB_DATABASE=coworking`, `DB_USERNAME=root` e a mesma `DB_PASSWORD` usada pelo Compose. Para encerrar os serviços, use `docker compose down`.
 
-#### 1. Backend (Laravel)
+### Backend e web sem contêiner
+
+Use PHP 8.4 com a extensão `pdo_sqlite`, Composer 2 e Node.js 22 LTS (a partir da 22.13) ou 24 LTS. Em um clone novo, execute os blocos em terminais separados, a partir da raiz.
+
+**Backend**
+
 ```bash
 cd backend
 composer install
-cp .env.example .env
+cp -n .env.example .env
 php artisan key:generate
-php artisan migrate --force
-php artisan db:seed --force
+touch database/database.sqlite
+php artisan migrate --seed
 php artisan storage:link
-php artisan serve --port=8000
+php artisan serve --host=0.0.0.0 --port=8000
 ```
 
-#### 2. Frontend (React + Vite)
+**Frontend**
+
 ```bash
 cd frontend
-npm install
-npm run dev
+npm ci
+npm run dev -- --port 5173 --strictPort
 ```
 
----
+### Aplicativo Flutter
 
-## 🧪 Bateria de Testes Automatizados e Qualidade
-
-### Testes do Backend (PHPUnit / Feature Tests)
-A suíte de testes de integração roda em ambiente SQLite isolado em memória:
+Instale Flutter estável com Dart compatível com `^3.12.2` e configure um emulador Android ou simulador iOS. Inicie a API antes de abrir o app:
 
 ```bash
-# Via container:
-docker exec coworking-backend php artisan test
-
-# Ou localmente:
-cd backend && php artisan test
+cd mobile
+flutter pub get
+flutter devices
+flutter run --dart-define=API_URL=http://10.0.2.2:8000/api
 ```
 
-**Resultado:** **30 testes passando (124 asserções) com 100% de sucesso.**
-- ✅ Fluxo de cadastro e autenticação Sanctum/Bearer Token
-- ✅ Validação contra e-mails duplicados e senhas divergentes
-- ✅ Criação de reserva com sucesso e cálculo de preço
-- ✅ **Teste obrigatório comprovando erro 422 ao tentar reservar horário conflitante (Double-Booking)**
-- ✅ Validação de horário de funcionamento do espaço
-- ✅ Listagem e cancelamento de reservas pelo cliente
-- ✅ Bloqueio de usuário comum tentando criar espaços de administrador (403)
-- ✅ Dashboard administrativo e métricas do sistema
+`10.0.2.2` é o alias do host no emulador Android padrão. No simulador iOS, use `http://localhost:8000/api`. Em aparelho físico, informe o IP do computador na mesma rede e confirme que a porta 8000 está acessível. Use HTTPS se a plataforma não permitir HTTP local.
 
-### Validação do Frontend (TypeScript + ESLint + Build)
+### Contas de demonstração
+
+O seeder de desenvolvimento cria `admin@teste.com` (administrador) e `ana@teste.com` (cliente), ambos com a senha de demonstração `12345678`. Use essas contas somente em desenvolvimento. O seeder é bloqueado em produção; veja o [guia de deploy](DEPLOY.md) para criar o primeiro administrador.
+
+## Configuração
+
+| Escopo | Variável | Finalidade |
+| --- | --- | --- |
+| [Laravel](backend/.env.example) | `APP_KEY`, `APP_ENV`, `APP_DEBUG`, `APP_URL` | Chave gerada pelo Artisan, ambiente, modo de depuração e URL da API. |
+| Laravel | `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD` | Conexão com o banco; SQLite é o padrão do exemplo local. |
+| Laravel | `COWORKING_TIMEZONE` | Fuso de negócio, `America/Sao_Paulo` por padrão. |
+| Laravel | `CORS_ALLOWED_ORIGINS`, `TRUSTED_PROXIES` | Origens autorizadas para CORS e proxies confiáveis; revise as permissões em produção. |
+| [Compose local](.env.example) | `DB_DATABASE`, `DB_PASSWORD` | Nome do banco e senha root do serviço MySQL local. Só copie para `.env` na raiz se precisar sobrescrever os valores padrão. |
+| [React](frontend/.env.example) | `VITE_API_URL` | Base pública da API, incluindo `/api`; padrão local: `http://localhost:8000/api`. |
+| [Flutter](mobile/lib/config.dart) | `API_URL` | Base da API fornecida via `--dart-define`. |
+
+Para publicar, consulte [DEPLOY.md](DEPLOY.md) e [.env.production.example](.env.production.example). Nunca inclua chaves, tokens ou senhas reais nos arquivos de exemplo ou no Git.
+
+## API
+
+Os caminhos abaixo são relativos a `/api`. Use `Accept: application/json` e, quando exigido, `Authorization: Bearer <token>`. A referência completa de rotas é [backend/routes/api.php](backend/routes/api.php).
+
+| Recurso | Método e rota | Acesso |
+| --- | --- | --- |
+| Conta | `POST /auth/register`, `POST /auth/login` | Público |
+| Sessão | `GET /auth/me`, `POST /auth/logout` | Autenticado |
+| Catálogo | `GET /spaces`, `GET /spaces/{space}`, `GET /photos/{photo}` | Público |
+| Disponibilidade e preço | `GET /spaces/{space}/availability`, `POST /spaces/{space}/bookings/preview` | Público |
+| Favoritos | `GET /favorites`, `POST /spaces/{space}/favorite`, `DELETE /spaces/{space}/favorite` | Autenticado |
+| Avaliações | `GET /spaces/{space}/reviews`; `POST /spaces/{space}/reviews`, `DELETE /spaces/{space}/reviews/{review}` | Leitura pública; escrita autenticada |
+| Reservas (`bookings`) | `GET /bookings`, `GET /bookings/{booking}`, `POST /spaces/{space}/bookings`, `POST /bookings/{booking}/cancel`, `DELETE /bookings/{booking}` | Autenticado |
+| Reservas (`reservations`) | `GET /reservations`, `POST /spaces/{space}/reservations`, `DELETE /reservations/{reservation}` | Autenticado |
+| Gestão de espaços | `GET /admin/spaces`, `POST /admin/spaces`, `GET` / `PUT` / `PATCH` / `DELETE /admin/spaces/{space}` | Criação: administrador; demais operações: administrador ou proprietário |
+| Gestão de fotos e agenda | `POST /admin/spaces/{space}/photos`, `PUT /admin/spaces/{space}/photos/order`, `DELETE /admin/spaces/{space}/photos/{photo}`, `GET /admin/spaces/{space}/reservations` | Administrador ou proprietário |
+| Gestão global | `GET /admin/bookings`, `PATCH /admin/bookings/{booking}/status`, `GET /admin/metrics`, `GET /admin/dashboard` | Administrador |
+
+Exemplo de consulta pública com o backend local em execução:
+
 ```bash
-# Via container:
-docker exec coworking-frontend npm run lint
-docker exec coworking-frontend npm run build
-
-# Ou localmente:
-cd frontend && npm run lint && npm run build
+curl --fail --silent --show-error \
+  -H 'Accept: application/json' \
+  http://localhost:8000/api/spaces
 ```
 
-**Resultado:** **0 erros e 0 warnings no ESLint e compilação de produção sem falhas via Vite.**
+## Testes e CI
 
----
+Na raiz do repositório, depois de instalar as dependências dos módulos:
 
-## 📡 Referência dos Principais Endpoints da API
+```bash
+(cd backend && php artisan test)
+(cd frontend && npm run lint && npm run build)
+(cd mobile && flutter analyze --no-fatal-infos && flutter test)
+```
 
-### Autenticação (`/api/auth`)
-| Método | Endpoint | Descrição | Acesso |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Cria uma nova conta de usuário | Público |
-| `POST` | `/api/auth/login` | Autentica e gera Bearer Token | Público |
-| `GET` | `/api/auth/me` | Retorna o perfil do usuário logado | Autenticado |
-| `POST` | `/api/auth/logout` | Revoga o token da sessão | Autenticado |
+Se o backend estiver no Compose, use `docker compose exec backend php artisan test`. A suíte cobre cadastro e autenticação, permissões, catálogo, avaliações, favoritos e reservas. A configuração padrão usa SQLite em memória; o teste de concorrência específico para MySQL é executado no workflow de backend.
 
-### Espaços Públicos (`/api/spaces`)
-| Método | Endpoint | Descrição | Acesso |
-|---|---|---|---|
-| `GET` | `/api/spaces` | Catálogo paginado com busca e filtros | Público / Opcional |
-| `GET` | `/api/spaces/{id}` | Detalhes completos do local e fotos | Público |
-| `POST` | `/api/spaces/{id}/bookings/preview` | Simulação em tempo real de preço e disponibilidade | Público |
-| `GET` | `/api/spaces/{id}/reviews` | Avaliações do local com paginação | Público |
+| Workflow | Responsabilidade |
+| --- | --- |
+| [CI](.github/workflows/ci.yml) | Testes Laravel com SQLite; lint e build do frontend. |
+| [Backend](.github/workflows/laravel.yml) | Verificação de estilo com Pint e suíte Laravel em MySQL. |
+| [Frontend](.github/workflows/frontend.yml) | Lint e build quando há mudanças no módulo web. |
+| [Mobile](.github/workflows/mobile.yml) | Análise estática e testes Flutter quando há mudanças no módulo mobile. |
+| [Docker](.github/workflows/docker.yml) | Validação do Compose de produção e build das imagens em PRs relevantes. |
 
-### Reservas do Cliente (`/api/bookings`)
-| Método | Endpoint | Descrição | Acesso |
-|---|---|---|---|
-| `GET` | `/api/bookings` | Lista as reservas do usuário autenticado | Cliente |
-| `POST` | `/api/spaces/{id}/bookings` | Cria uma nova reserva (com validação anti-conflito) | Cliente |
-| `GET` | `/api/bookings/{id}` | Detalhes de uma reserva específica | Cliente / Admin |
-| `POST` | `/api/bookings/{id}/cancel` | Cancela uma reserva ativa | Cliente / Admin |
+## Roadmap e contribuição
 
-### Painel Administrativo (`/api/admin`)
-| Método | Endpoint | Descrição | Acesso |
-|---|---|---|---|
-| `GET` | `/api/admin/metrics` | KPIs (taxa de ocupação, receita estimada, reservas) | Admin |
-| `GET` | `/api/admin/bookings` | Listagem geral de reservas com filtros | Admin |
-| `PATCH`| `/api/admin/bookings/{id}/status` | Aprova, conclui ou cancela reservas | Admin |
-| `POST` | `/api/admin/spaces` | Cadastra novo espaço com comodidades e horários | Admin |
-| `PUT`  | `/api/admin/spaces/{id}` | Atualiza dados de um espaço existente | Admin |
-| `DELETE`| `/api/admin/spaces/{id}` | Remove um espaço do sistema | Admin |
+Próximos passos propostos, não funcionalidades entregues: documentar o contrato da API em OpenAPI, automatizar a jornada de reserva no navegador e avaliar a consolidação dos dois fluxos de reserva. Consulte o [roadmap](ROADMAP.md) e o [changelog](CHANGELOG.md) para conhecer o contexto e acompanhar as mudanças.
 
----
+Para contribuir, siga o [guia de contribuição](CONTRIBUTING.md) e o [código de conduta](CODE_OF_CONDUCT.md). Use a [política de segurança](SECURITY.md) para reportar vulnerabilidades de forma privada.
 
-## 📄 Licença
+## Licença e autoria
 
-Distribuído sob licença MIT. Desenvolvido com padrões de Engenharia de Software Sênior.
+Distribuído sob a [licença MIT](LICENSE).
+
+**João Victor** · [@Joaovictoreth1](https://github.com/Joaovictoreth1)
