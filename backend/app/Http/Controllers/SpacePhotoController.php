@@ -7,6 +7,7 @@ use App\Models\Space;
 use App\Models\SpacePhoto;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
@@ -71,14 +72,25 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
 
         $data = $request->validate([
-            'ids' => ['required', 'array', 'max:'.Space::MAX_PHOTOS],
-            'ids.*' => ['integer'],
+            'ids' => ['required', 'array', 'list', 'max:'.Space::MAX_PHOTOS],
+            'ids.*' => ['required', 'integer', 'distinct'],
         ]);
 
-        // O filtro por space_id garante que ids de outros locais sejam ignorados.
-        foreach (array_values($data['ids']) as $position => $id) {
-            SpacePhoto::where('space_id', $space->id)->where('id', $id)->update(['position' => $position]);
-        }
+        DB::transaction(function () use ($space, $data) {
+            $photos = SpacePhoto::query()->where('space_id', $space->id);
+            $currentIds = (clone $photos)->orderBy('id')->lockForUpdate()->pluck('id');
+            $requestedIds = array_map('intval', $data['ids']);
+
+            if ($currentIds->count() !== count($requestedIds) || $currentIds->diff($requestedIds)->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'ids' => ['Informe todas as fotos deste local, uma única vez.'],
+                ]);
+            }
+
+            foreach ($requestedIds as $position => $id) {
+                (clone $photos)->whereKey($id)->update(['position' => $position]);
+            }
+        }, 3);
 
         return new SpaceResource($space->load('photos'));
     }
