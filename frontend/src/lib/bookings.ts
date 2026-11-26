@@ -42,9 +42,10 @@ export const bookingsApi = {
             token: tokenStorage.get(),
         }),
 
-    list: (status?: string) => {
-        const query = status ? `?status=${encodeURIComponent(status)}` : ''
-        return request<{ data: Booking[] }>(`/bookings${query}`, {
+    list: (page: number, status?: Booking['status']) => {
+        const query = new URLSearchParams({ page: String(page) })
+        if (status) query.set('status', status)
+        return request<Paginated<Booking>>(`/bookings?${query}`, {
             token: tokenStorage.get(),
         })
     },
