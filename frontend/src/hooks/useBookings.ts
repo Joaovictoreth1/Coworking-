@@ -33,20 +33,32 @@ export function useBookingPreviewQuery(
     })
 }
 
+export function isBookingConflict(error: unknown): error is ApiError {
+    return error instanceof ApiError
+        && (error.status === 409 || (error.status === 422 && Boolean(error.errors.booking_conflict)))
+}
+
 export function useCreateBookingMutation(spaceId: number) {
     const queryClient = useQueryClient()
+
+    function refreshSchedule() {
+        void queryClient.invalidateQueries({ queryKey: ['booking-preview', spaceId] })
+        void queryClient.invalidateQueries({ queryKey: ['availability', spaceId] })
+    }
 
     return useMutation({
         mutationFn: async (payload: BookingPayload) => {
             return await bookingsApi.create(spaceId, payload)
         },
         onSuccess: () => {
+            refreshSchedule()
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva confirmada com sucesso! 🚀')
         },
         onError: (err: unknown) => {
+            if (isBookingConflict(err)) refreshSchedule()
             const message = err instanceof ApiError ? err.message : 'Falha ao confirmar reserva.'
             toast.error(message)
         },

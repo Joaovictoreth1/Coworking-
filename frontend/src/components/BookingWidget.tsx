@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useAuth } from '../auth/context'
-import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import { isBookingConflict, useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
 import { ApiError } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
@@ -41,12 +41,18 @@ export function BookingWidget({ space }: BookingWidgetProps) {
     // Consulta prévia e validação em tempo real de conflitos
     const {
         data: preview,
-        isLoading: isChecking,
+        isFetching: isChecking,
         error: previewError,
     } = useBookingPreviewQuery(space.id, startIso, endIso, isValidRange)
 
     const createBooking = useCreateBookingMutation(space.id)
-    const canBook = isValidRange && preview?.available === true && !previewError
+    const createConflict = isBookingConflict(createBooking.error)
+        && createBooking.variables?.start_time === startIso
+        && createBooking.variables?.end_time === endIso
+        ? createBooking.error
+        : null
+    const canBook = isValidRange && !isChecking && !createBooking.isPending
+        && preview?.available === true && !previewError && !createConflict
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
@@ -73,13 +79,13 @@ export function BookingWidget({ space }: BookingWidgetProps) {
     }
 
     const conflictMessage =
-        preview?.available === false
+        createConflict?.message ?? (preview?.available === false
             ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
             : previewError
               ? previewError instanceof ApiError
                   ? previewError.message
                   : 'Horário indisponível ou fora do período de funcionamento.'
-              : null
+              : null)
 
     return (
         <aside
@@ -183,7 +189,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 )}
 
                 {/* Resumo do Valor Calculado */}
-                {isValidRange && preview?.available && (
+                {isValidRange && preview?.available && !conflictMessage && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>
@@ -203,7 +209,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 {/* Botão de Ação */}
                 <button
                     type="submit"
-                    disabled={Boolean(user) && (isChecking || createBooking.isPending || !canBook)}
+                    disabled={Boolean(user) && !canBook}
                     className={`${primaryButton} w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                     {createBooking.isPending ? (
