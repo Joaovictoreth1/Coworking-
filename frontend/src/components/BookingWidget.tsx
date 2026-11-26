@@ -33,12 +33,12 @@ function toLocalIsoWithOffset(date: string, time: string): string {
     return `${date}T${time}:00${sign}${hh}:${mm}`
 }
 
-function formatTimeRange(startIso: string, endIso: string): string {
+function formatTimeRange(startIso: string, endIso: string, timeZone?: string): string {
     const start = new Date(startIso)
     const end = new Date(endIso)
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return ''
     const fmt = (d: Date) =>
-        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone })
     return `${fmt(start)} – ${fmt(end)}`
 }
 
@@ -260,6 +260,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                                                     {formatTimeRange(
                                                         slot.start_time,
                                                         slot.end_time,
+                                                        availability.timezone,
                                                     )}
                                                 </span>
                                             ))}
