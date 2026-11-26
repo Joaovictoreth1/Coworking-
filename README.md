@@ -149,17 +149,18 @@ cd backend && php artisan test
 - ✅ Listagem, cancelamento (`200`), bloqueio de cancelamento duplicado/concluído (`409`) e isolamento entre usuários (`403`)
 - ✅ Proteção `admin` em `/api/admin/spaces`, `/api/admin/bookings`, `/api/admin/metrics` e `/api/admin/dashboard` (`403` para usuário comum)
 
-### Validação do Frontend (TypeScript + ESLint + Build)
+### Validação do Frontend (Vitest + TypeScript + ESLint + Build)
 ```bash
 # Via container:
 docker exec coworking-frontend npm run lint
+docker exec coworking-frontend npm test
 docker exec coworking-frontend npm run build
 
 # Ou localmente:
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm test && npm run build
 ```
 
-**Resultado:** **0 erros e 0 warnings no ESLint e compilação de produção sem falhas via Vite.**
+**Resultado:** **11 testes Vitest passando, 0 erros no ESLint e compilação de produção sem falhas via Vite.**
 
 ---
 
@@ -178,6 +179,7 @@ cd frontend && npm run lint && npm run build
 |---|---|---|---|
 | `GET` | `/api/spaces` | Catálogo paginado com busca e filtros | Público / Opcional |
 | `GET` | `/api/spaces/{id}` | Detalhes completos do local e fotos | Público |
+| `GET` | `/api/spaces/{id}/bookings/availability?date=AAAA-MM-DD` | Janela de funcionamento e horários ocupados do dia (sem PII) | Público |
 | `POST` | `/api/spaces/{id}/bookings/preview` | Simulação em tempo real de preço e disponibilidade | Público |
 | `GET` | `/api/spaces/{id}/reviews` | Avaliações do local com paginação | Público |
 
