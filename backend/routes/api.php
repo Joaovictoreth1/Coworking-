@@ -76,8 +76,10 @@ Route::middleware('auth.token')->prefix('admin')->group(function () {
     Route::delete('spaces/{space}/photos/{photo}', [SpacePhotoController::class, 'destroy']);
 
     // Gestão de Reservas e Métricas do Sistema
-    Route::get('bookings', [AdminBookingController::class, 'index']);
-    Route::patch('bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->whereNumber('booking');
-    Route::get('metrics', [AdminBookingController::class, 'metrics']);
-    Route::get('dashboard', [AdminBookingController::class, 'metrics']);
+    Route::middleware('admin')->group(function () {
+        Route::get('bookings', [AdminBookingController::class, 'index']);
+        Route::patch('bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->whereNumber('booking');
+        Route::get('metrics', [AdminBookingController::class, 'metrics']);
+        Route::get('dashboard', [AdminBookingController::class, 'metrics']);
+    });
 });
