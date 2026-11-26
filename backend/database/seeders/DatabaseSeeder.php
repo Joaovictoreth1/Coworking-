@@ -120,6 +120,8 @@ class DatabaseSeeder extends Seeder
             $users[] = $user;
         }
 
+        $this->call(SaoPauloCoworkings2026Seeder::class);
+
         $this->createReviews($users);
         $this->createFavorites($users);
         $this->createBookings($users);

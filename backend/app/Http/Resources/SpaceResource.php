@@ -26,6 +26,8 @@ class SpaceResource extends JsonResource
             'neighborhood' => $this->neighborhood,
             'city' => $this->city,
             'state' => $this->state,
+            'latitude' => $this->latitude !== null ? (float) $this->latitude : null,
+            'longitude' => $this->longitude !== null ? (float) $this->longitude : null,
 
             'hourly_price' => $this->hourly_price !== null ? (float) $this->hourly_price : null,
             'daily_price' => $this->daily_price !== null ? (float) $this->daily_price : null,

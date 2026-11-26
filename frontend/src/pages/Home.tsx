@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useAuth } from '../auth/context'
 import { Alert } from '../components/admin/FormControls'
 import ComponentBody from '../components/ComponentBody'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon } from '../components/icons'
+import GoogleMapsExplorer from '../components/GoogleMapsExplorer'
+import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, MapPinIcon, SearchIcon } from '../components/icons'
 import { SpaceCardSkeleton } from '../components/Skeleton'
 import SpaceCard from '../components/SpaceCard'
 import SpaceFilters from '../components/SpaceFilters'
@@ -23,6 +25,9 @@ const QUICK_PRESETS: { label: string; priceType: FilterState['priceType']; sort?
 
 export default function Home() {
     const { user } = useAuth()
+    const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
+    const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
+    const [sortByDistance, setSortByDistance] = useState(false)
     const {
         search,
         setSearch,
@@ -39,7 +44,7 @@ export default function Home() {
         errorMessage,
         filtersOn,
         favorites,
-    } = useSpaceSearch()
+    } = useSpaceSearch({ coords: userCoords, sortByDistance: viewMode === 'map' && sortByDistance })
 
     return (
         <ComponentBody>
@@ -135,13 +140,14 @@ export default function Home() {
                                     key={preset.label}
                                     type="button"
                                     aria-pressed={active}
-                                    onClick={() =>
+                                    onClick={() => {
+                                        if (preset.sort) setSortByDistance(false)
                                         setFilters({
                                             ...filters,
                                             priceType: preset.priceType,
                                             sort: preset.sort ?? (filters.sort === 'rating' ? 'recent' : filters.sort),
                                         })
-                                    }
+                                    }}
                                     className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
                                         active
                                             ? 'bg-white text-slate-900 shadow-sm'
@@ -152,6 +158,22 @@ export default function Home() {
                                 </button>
                             )
                         })}
+                        <button
+                            type="button"
+                            aria-pressed={viewMode === 'map'}
+                            onClick={() => {
+                                setViewMode('map')
+                                if (!search.trim()) setSearch('São Paulo')
+                            }}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                viewMode === 'map'
+                                    ? 'bg-emerald-400 text-slate-950 shadow-sm'
+                                    : 'bg-indigo-500/30 text-indigo-100 ring-1 ring-indigo-300/30 hover:bg-indigo-500/45'
+                            }`}
+                        >
+                            <MapPinIcon className="h-3.5 w-3.5" />
+                            Mapa SP (Google Maps)
+                        </button>
                     </div>
 
                     <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-300">
@@ -172,7 +194,14 @@ export default function Home() {
             </section>
 
             <div className="mt-5">
-                <SpaceFilters value={filters} onChange={setFilters} onClear={clearFilters} />
+                <SpaceFilters
+                    value={filters}
+                    onChange={(next) => {
+                        if (next.sort !== filters.sort) setSortByDistance(false)
+                        setFilters(next)
+                    }}
+                    onClear={clearFilters}
+                />
             </div>
 
             <section aria-labelledby="spaces-results-heading" className="mt-6">
@@ -211,58 +240,116 @@ export default function Home() {
                             </li>
                         ))}
                     </ul>
-                ) : items.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-                        <p className="font-display text-xl font-semibold text-slate-900">
-                            {filtersOn ? 'Nenhum local encontrado' : 'Ainda não há locais disponíveis'}
-                        </p>
-                        <p className="mt-2 text-slate-600">
-                            {filtersOn
-                                ? 'Tente outro termo ou ajuste a faixa de preço.'
-                                : 'Volte em breve.'}
-                        </p>
-                        {filtersOn && (
-                            <button
-                                type="button"
-                                onClick={clearAll}
-                                className={`${secondaryButton} mt-5`}
-                            >
-                                Limpar busca e filtros
-                            </button>
-                        )}
-                    </div>
                 ) : (
                     <>
                         {meta && (
-                            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                                <p aria-live="polite" className="text-sm font-medium text-slate-600">
-                                    {meta.total} {meta.total === 1 ? 'local' : 'locais'}
-                                    {filtersOn ? ' encontrados' : ' disponíveis'}
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
+                                    <p aria-live="polite" className="text-sm font-medium text-slate-600">
+                                        {meta.total} {meta.total === 1 ? 'local' : 'locais'}
+                                        {filtersOn ? ' encontrados' : ' disponíveis'}
+                                    </p>
+                                    {filtersOn && (
+                                        <button
+                                            type="button"
+                                            onClick={clearAll}
+                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                        >
+                                            Limpar busca e filtros
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div
+                                    role="group"
+                                    aria-label="Modo de visualização"
+                                    className="inline-flex rounded-xl border border-slate-200 bg-white p-1 shadow-xs"
+                                >
+                                    <button
+                                        type="button"
+                                        aria-pressed={viewMode === 'grid'}
+                                        onClick={() => setViewMode('grid')}
+                                        className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                            viewMode === 'grid'
+                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        Lista
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-pressed={viewMode === 'map'}
+                                        onClick={() => {
+                                            setViewMode('map')
+                                            if (!search.trim()) setSearch('São Paulo')
+                                        }}
+                                        className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                            viewMode === 'map'
+                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                : 'text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <MapPinIcon className="h-3.5 w-3.5" />
+                                        Mapa Google Maps (SP)
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        {viewMode === 'map' ? (
+                            <GoogleMapsExplorer
+                                spaces={items}
+                                activeSearch={search}
+                                filtersOn={filtersOn}
+                                userCoords={userCoords}
+                                sortByDistance={sortByDistance}
+                                onUserCoordsChange={(coords) => {
+                                    setUserCoords(coords)
+                                    setSortByDistance(true)
+                                    goToPage(1)
+                                }}
+                                onToggleSortByDistance={() => {
+                                    setSortByDistance((v) => !v)
+                                    goToPage(1)
+                                }}
+                                onSelectHub={(hubQuery) => setSearch(hubQuery)}
+                                onClearAll={clearAll}
+                            />
+                        ) : items.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+                                <p className="font-display text-xl font-semibold text-slate-900">
+                                    {filtersOn ? 'Nenhum local encontrado' : 'Ainda não há locais disponíveis'}
+                                </p>
+                                <p className="mt-2 text-slate-600">
+                                    {filtersOn
+                                        ? 'Tente outro termo ou ajuste a faixa de preço.'
+                                        : 'Volte em breve.'}
                                 </p>
                                 {filtersOn && (
                                     <button
                                         type="button"
                                         onClick={clearAll}
-                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                        className={`${secondaryButton} mt-5`}
                                     >
                                         Limpar busca e filtros
                                     </button>
                                 )}
                             </div>
+                        ) : (
+                            <ul
+                                aria-label="Lista de espaços"
+                                className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${
+                                    isFetching ? 'opacity-60' : ''
+                                }`}
+                                aria-busy={isFetching}
+                            >
+                                {items.map((space) => (
+                                    <li key={space.id} className="flex">
+                                        <SpaceCard space={space} onToggleFavorite={favorites.toggle} />
+                                    </li>
+                                ))}
+                            </ul>
                         )}
-                        <ul
-                            aria-label="Lista de espaços"
-                            className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${
-                                isFetching ? 'opacity-60' : ''
-                            }`}
-                            aria-busy={isFetching}
-                        >
-                            {items.map((space) => (
-                                <li key={space.id} className="flex">
-                                    <SpaceCard space={space} onToggleFavorite={favorites.toggle} />
-                                </li>
-                            ))}
-                        </ul>
                     </>
                 )}
             </section>

@@ -49,6 +49,8 @@ class SpaceRequest extends FormRequest
             'neighborhood' => ['nullable', 'string', 'max:100'],
             'city' => ['required', 'string', 'max:100'],
             'state' => ['required', 'string', 'size:2', 'alpha'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
 
             'hourly_price' => ['nullable', 'numeric', 'min:0.01', 'max:99999999.99'],
             'daily_price' => ['nullable', 'numeric', 'min:0.01', 'max:99999999.99'],

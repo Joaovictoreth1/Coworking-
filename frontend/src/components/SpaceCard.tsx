@@ -1,3 +1,4 @@
+import { hasCoordinates } from '../lib/maps'
 import { href } from '../lib/route'
 import {
     amenityLabel,
@@ -96,12 +97,22 @@ export default function SpaceCard({
                         <p className="mt-0.5 text-xs text-slate-500">Novo espaço · Sem avaliações</p>
                     )}
 
-                    <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-600">
-                        <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
-                        <span className="line-clamp-1">
-                            {space.neighborhood ? `${space.neighborhood} · ` : ''}
-                            {space.city}/{space.state}
+                    <p className="mt-2 flex items-center justify-between gap-2 text-sm text-slate-600">
+                        <span className="flex min-w-0 items-start gap-1.5">
+                            <MapPinIcon className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            <span className="line-clamp-1">
+                                {space.neighborhood ? `${space.neighborhood} · ` : ''}
+                                {space.city}/{space.state}
+                            </span>
                         </span>
+                        {hasCoordinates(space) && (
+                            <span
+                                title="Localização exata no Google Maps"
+                                className="shrink-0 rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700"
+                            >
+                                Maps
+                            </span>
+                        )}
                     </p>
                     {space.capacity !== null && (
                         <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">

@@ -9,6 +9,7 @@ import Field from '../../components/Field'
 import { ArrowLeftIcon } from '../../components/icons'
 import { ApiError } from '../../lib/api'
 import { clearFlash, peekFlash, setFlash } from '../../lib/flash'
+import { getGoogleMapsEmbedUrl, getGoogleMapsPlaceUrl } from '../../lib/maps'
 import { href, navigate } from '../../lib/route'
 import {
     STATES,
@@ -38,6 +39,8 @@ interface FormState {
     neighborhood: string
     city: string
     state: string
+    latitude: string
+    longitude: string
     hourly_enabled: boolean
     hourly_price: string
     daily_enabled: boolean
@@ -62,6 +65,8 @@ const emptyForm = (): FormState => ({
     neighborhood: '',
     city: '',
     state: '',
+    latitude: '',
+    longitude: '',
     hourly_enabled: true,
     hourly_price: '',
     daily_enabled: false,
@@ -92,6 +97,8 @@ const fromSpace = (s: Space): FormState => ({
     neighborhood: s.neighborhood ?? '',
     city: s.city,
     state: s.state,
+    latitude: s.latitude != null ? String(s.latitude) : '',
+    longitude: s.longitude != null ? String(s.longitude) : '',
     hourly_enabled: s.hourly_price !== null,
     hourly_price: moneyToInput(s.hourly_price),
     daily_enabled: s.daily_price !== null,
@@ -107,6 +114,21 @@ const fromSpace = (s: Space): FormState => ({
 
 const orNull = (text: string) => text.trim() || null
 
+const COORD_RE = /^-?\d+(?:[.,]\d+)?$/
+
+function parseCoordinate(
+    raw: string,
+    min: number,
+    max: number,
+): { valid: boolean; value: number | null } {
+    const trimmed = raw.trim()
+    if (!trimmed) return { valid: true, value: null }
+    if (!COORD_RE.test(trimmed)) return { valid: false, value: null }
+    const num = Number(trimmed.replace(',', '.'))
+    if (!Number.isFinite(num) || num < min || num > max) return { valid: false, value: null }
+    return { valid: true, value: num }
+}
+
 const toPayload = (f: FormState): SpacePayload => ({
     name: f.name.trim(),
     description: orNull(f.description),
@@ -118,6 +140,8 @@ const toPayload = (f: FormState): SpacePayload => ({
     neighborhood: orNull(f.neighborhood),
     city: f.city.trim(),
     state: f.state,
+    latitude: parseCoordinate(f.latitude, -90, 90).value,
+    longitude: parseCoordinate(f.longitude, -180, 180).value,
     // Espaço gratuito não tem preços
     hourly_price: !f.is_free && f.hourly_enabled ? parseMoney(f.hourly_price) : null,
     daily_price: !f.is_free && f.daily_enabled ? parseMoney(f.daily_price) : null,
@@ -142,6 +166,15 @@ function validate(f: FormState): Errors {
     if (!f.street.trim()) add('street', 'Informe a rua.')
     if (!f.city.trim()) add('city', 'Informe a cidade.')
     if (!f.state) add('state', 'Informe o estado.')
+
+    const latParsed = parseCoordinate(f.latitude, -90, 90)
+    const lngParsed = parseCoordinate(f.longitude, -180, 180)
+    if (!latParsed.valid) add('latitude', 'Latitude inválida. Use um valor entre -90 e 90 (ex.: -23.5629).')
+    if (!lngParsed.valid) add('longitude', 'Longitude inválida. Use um valor entre -180 e 180 (ex.: -46.6544).')
+    if (latParsed.valid && lngParsed.valid && (latParsed.value === null) !== (lngParsed.value === null)) {
+        if (latParsed.value === null) add('latitude', 'Informe a latitude junto com a longitude.')
+        if (lngParsed.value === null) add('longitude', 'Informe a longitude junto com a latitude.')
+    }
 
     if (!f.is_free) {
         if (!f.hourly_enabled && !f.daily_enabled && !f.monthly_enabled) {
@@ -245,6 +278,14 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const queryClient = useQueryClient()
 
     const [form, setForm] = useState<FormState>(emptyForm)
+    const [savedLocation, setSavedLocation] = useState<{
+        street: string
+        number: string
+        city: string
+        state: string
+        latitude: string
+        longitude: string
+    } | null>(null)
     const [photos, setPhotos] = useState<PhotoItem[]>([])
     const [removedIds, setRemovedIds] = useState<number[]>([])
     const [errors, setErrors] = useState<Errors>({})
@@ -254,6 +295,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const [loadError, setLoadError] = useState('')
     const [reloadKey, setReloadKey] = useState(0)
     const [submitting, setSubmitting] = useState(false)
+    const [showMapPreview, setShowMapPreview] = useState(false)
 
     const photosRef = useRef(photos)
     useEffect(() => {
@@ -271,7 +313,16 @@ export default function SpaceForm({ id }: { id: number | null }) {
     }, [])
 
     function applySpace(space: Space) {
-        setForm(fromSpace(space))
+        const next = fromSpace(space)
+        setForm(next)
+        setSavedLocation({
+            street: next.street.trim(),
+            number: next.number.trim(),
+            city: next.city.trim(),
+            state: next.state,
+            latitude: next.latitude.trim(),
+            longitude: next.longitude.trim(),
+        })
         setPhotos(space.photos.map((p) => ({ key: `photo-${p.id}`, id: p.id, url: p.url })))
         setRemovedIds([])
     }
@@ -591,7 +642,99 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                         error={errors.state?.[0]}
                                     />
                                 </div>
+                                <div className="sm:col-span-3">
+                                    <Field
+                                        label="Latitude (Google Maps)"
+                                        name="latitude"
+                                        inputMode="decimal"
+                                        placeholder="Ex.: -23.5629"
+                                        hint="Opcional — usado para posicionar o pino exato no Google Maps."
+                                        value={form.latitude}
+                                        onChange={(v) => set('latitude', v.replace(/[^\d.,-]/g, ''))}
+                                        error={errors.latitude?.[0]}
+                                    />
+                                </div>
+                                <div className="sm:col-span-3">
+                                    <Field
+                                        label="Longitude (Google Maps)"
+                                        name="longitude"
+                                        inputMode="decimal"
+                                        placeholder="Ex.: -46.6544"
+                                        hint="Opcional — ex.: São Paulo fica em torno de -46.65."
+                                        value={form.longitude}
+                                        onChange={(v) => set('longitude', v.replace(/[^\d.,-]/g, ''))}
+                                        error={errors.longitude?.[0]}
+                                    />
+                                </div>
                             </div>
+                            {(form.street.trim() || (form.latitude.trim() && form.longitude.trim())) && (() => {
+                                const addressRelocated =
+                                    savedLocation !== null &&
+                                    (form.street.trim() !== savedLocation.street ||
+                                        form.number.trim() !== savedLocation.number ||
+                                        form.city.trim() !== savedLocation.city ||
+                                        form.state !== savedLocation.state)
+                                const gpsStale =
+                                    addressRelocated &&
+                                    form.latitude.trim() === savedLocation.latitude &&
+                                    form.longitude.trim() === savedLocation.longitude
+                                const previewLat = gpsStale
+                                    ? null
+                                    : parseCoordinate(form.latitude, -90, 90).value
+                                const previewLng = gpsStale
+                                    ? null
+                                    : parseCoordinate(form.longitude, -180, 180).value
+
+                                const previewTarget = {
+                                    name: form.name.trim() || 'Coworking',
+                                    street: form.street.trim(),
+                                    number: form.number.trim() || null,
+                                    neighborhood: form.neighborhood.trim() || null,
+                                    city: form.city.trim() || 'São Paulo',
+                                    state: form.state || 'SP',
+                                    latitude: previewLat,
+                                    longitude: previewLng,
+                                }
+
+                                return (
+                                    <div className="space-y-2 pt-1">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <a
+                                                href={getGoogleMapsPlaceUrl(previewTarget)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                                            >
+                                                Conferir localização no Google Maps →
+                                            </a>
+                                            <button
+                                                type="button"
+                                                aria-expanded={showMapPreview}
+                                                onClick={() => setShowMapPreview((v) => !v)}
+                                                className="text-xs font-semibold text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-indigo-600 cursor-pointer"
+                                            >
+                                                {showMapPreview ? 'Ocultar prévia do mapa' : 'Pré-visualizar mapa aqui'}
+                                            </button>
+                                        </div>
+                                        {gpsStale && (
+                                            <p className="text-xs text-amber-700">
+                                                Endereço alterado: a prévia usa o novo endereço e o GPS antigo será limpo ao salvar (ou informe novas coordenadas).
+                                            </p>
+                                        )}
+                                        {showMapPreview && (
+                                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                                                <iframe
+                                                    title={`Prévia no Google Maps de ${previewTarget.name}`}
+                                                    src={getGoogleMapsEmbedUrl(previewTarget)}
+                                                    loading="lazy"
+                                                    referrerPolicy="no-referrer-when-downgrade"
+                                                    className="h-56 w-full border-0"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })()}
                         </Section>
 
                         <Section

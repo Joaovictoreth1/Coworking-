@@ -17,7 +17,9 @@ class PublicSpaceController extends Controller
             'price_type' => ['nullable', 'in:free,hourly,daily,monthly'],
             'min_price'  => ['nullable', 'numeric', 'min:0'],
             'max_price'  => ['nullable', 'numeric', 'min:0'],
-            'sort'       => ['nullable', 'in:price_asc,price_desc,rating'],
+            'sort'       => ['nullable', 'in:price_asc,price_desc,rating,distance'],
+            'lat'        => ['nullable', 'numeric', 'between:-90,90'],
+            'lng'        => ['nullable', 'numeric', 'between:-180,180'],
         ]);
 
         $user = $request->user();
@@ -40,15 +42,29 @@ class PublicSpaceController extends Controller
             ->priceFilter($type, $min, $max);
 
         // 3. Aplicação da ordenação
-        match ($validated['sort'] ?? null) {
-            'price_asc'  => $query->orderByPrice('asc', $type)->latest('id'),
-            'price_desc' => $query->orderByPrice('desc', $type)->latest('id'),
-            'rating'     => $query->orderByRaw('reviews_avg_rating is null')
-                                  ->orderByDesc('reviews_avg_rating')
-                                  ->orderByDesc('reviews_count')
-                                  ->latest('id'),
-            default      => $query->latest('id'),
-        };
+        $sort = $validated['sort'] ?? null;
+        if ($sort === 'distance' && isset($validated['lat'], $validated['lng'])) {
+            $lat = (float) $validated['lat'];
+            $lng = (float) $validated['lng'];
+            $cosLatSq = cos(deg2rad($lat)) ** 2;
+
+            $query->orderByRaw('latitude is null or longitude is null')
+                ->orderByRaw(
+                    '((latitude - ?) * (latitude - ?)) + ((longitude - ?) * (longitude - ?) * ?) asc',
+                    [$lat, $lat, $lng, $lng, $cosLatSq],
+                )
+                ->latest('id');
+        } else {
+            match ($sort) {
+                'price_asc'  => $query->orderByPrice('asc', $type)->latest('id'),
+                'price_desc' => $query->orderByPrice('desc', $type)->latest('id'),
+                'rating'     => $query->orderByRaw('reviews_avg_rating is null')
+                                      ->orderByDesc('reviews_avg_rating')
+                                      ->orderByDesc('reviews_count')
+                                      ->latest('id'),
+                default      => $query->latest('id'),
+            };
+        }
 
         return SpaceResource::collection($query->paginate(15)->withQueryString());
     }
