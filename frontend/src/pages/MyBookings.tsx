@@ -1,11 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import ComponentBody from '../components/ComponentBody'
+import { SearchIcon } from '../components/icons'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
 import { ApiError } from '../lib/api'
 import { href } from '../lib/route'
 import { formatBRL, type Booking } from '../lib/spaces'
-import { primaryButton, secondaryButton } from '../lib/ui'
+import { inputClass, primaryButton, secondaryButton } from '../lib/ui'
+import { useToastStore } from '../store/useToastStore'
 
 type StatusFilter = '' | 'confirmed' | 'pending' | 'completed' | 'cancelled'
 
@@ -77,9 +79,12 @@ function formatTime(iso: string) {
 
 export default function MyBookings() {
     const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
+    const [searchQuery, setSearchQuery] = useState('')
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
     const [selectedVoucher, setSelectedVoucher] = useState<Booking | null>(null)
+    const [copiedCode, setCopiedCode] = useState<string | null>(null)
+    const addToast = useToastStore((s) => s.addToast)
 
     const {
         data: bookings,
@@ -89,6 +94,43 @@ export default function MyBookings() {
         isFetching,
     } = useUserBookingsQuery(selectedTab || undefined)
     const cancelMutation = useCancelBookingMutation()
+
+    // Fecha modais abertos ao pressionar Escape
+    useEffect(() => {
+        if (!selectedVoucher && cancellingId === null) return
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return
+            if (selectedVoucher) setSelectedVoucher(null)
+            else if (cancellingId !== null && !cancelMutation.isPending) setCancellingId(null)
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+    }, [selectedVoucher, cancellingId, cancelMutation.isPending])
+
+    const filteredBookings = useMemo(() => {
+        if (!bookings) return []
+        const term = searchQuery.trim().toLowerCase()
+        if (!term) return bookings
+        return bookings.filter((b) => {
+            const spaceName = (b.space?.name || b.space_name || '').toLowerCase()
+            const city = (b.space?.city || '').toLowerCase()
+            const voucher = (b.voucher_code || '').toLowerCase()
+            return spaceName.includes(term) || city.includes(term) || voucher.includes(term)
+        })
+    }, [bookings, searchQuery])
+
+    async function handleCopyVoucher(code: string) {
+        try {
+            await navigator.clipboard.writeText(code)
+            setCopiedCode(code)
+            addToast(`Código ${code} copiado.`, 'success')
+            window.setTimeout(() => {
+                setCopiedCode((current) => (current === code ? null : current))
+            }, 2000)
+        } catch {
+            addToast('Não foi possível copiar o código.', 'error')
+        }
+    }
 
     async function handleConfirmCancel(bookingId: number) {
         try {
@@ -117,25 +159,44 @@ export default function MyBookings() {
                     </a>
                 </div>
 
-                {/* Abas de Filtro */}
-                <div className="flex gap-2 overflow-x-auto py-5 border-b border-slate-100 no-scrollbar">
-                    {TABS.map((tab) => {
-                        const active = selectedTab === tab.value
-                        return (
-                            <button
-                                key={tab.value}
-                                type="button"
-                                onClick={() => setSelectedTab(tab.value)}
-                                className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer whitespace-nowrap ${
-                                    active
-                                        ? 'bg-slate-900 text-white shadow-sm'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                            >
-                                {tab.label}
-                            </button>
-                        )
-                    })}
+                {/* Abas de Filtro e Busca */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-5 border-b border-slate-100">
+                    <div
+                        role="group"
+                        aria-label="Filtrar reservas por status"
+                        className="flex gap-2 overflow-x-auto no-scrollbar"
+                    >
+                        {TABS.map((tab) => {
+                            const active = selectedTab === tab.value
+                            return (
+                                <button
+                                    key={tab.value}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => setSelectedTab(tab.value)}
+                                    className={`px-4 py-2 rounded-xl text-sm font-medium transition cursor-pointer whitespace-nowrap ${
+                                        active
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+
+                    <div className="relative sm:w-64 shrink-0">
+                        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <input
+                            type="search"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Buscar espaço ou voucher..."
+                            aria-label="Buscar reservas por espaço, cidade ou voucher"
+                            className={`h-10 pl-9 text-sm ${inputClass(false)}`}
+                        />
+                    </div>
                 </div>
 
                 {/* Conteúdo Principal */}
@@ -166,27 +227,41 @@ export default function MyBookings() {
                                 {isFetching ? 'Recarregando...' : 'Tentar novamente'}
                             </button>
                         </div>
-                    ) : !bookings || bookings.length === 0 ? (
+                    ) : filteredBookings.length === 0 ? (
                         <div className="text-center py-16 bg-white rounded-3xl border border-slate-200/80 p-8 shadow-sm">
-                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-2xl mb-4">
+                            <div
+                                aria-hidden="true"
+                                className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-2xl mb-4"
+                            >
                                 📅
                             </div>
                             <h2 className="text-xl font-bold text-slate-900">
-                                {selectedTab
+                                {selectedTab || searchQuery.trim()
                                     ? 'Nenhuma reserva encontrada com este filtro.'
                                     : 'Você ainda não possui nenhuma reserva.'}
                             </h2>
                             <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-                                Encontre salas privativas, estações de coworking ou auditórios ideais
-                                para o seu trabalho.
+                                {searchQuery.trim()
+                                    ? 'Tente outro termo ou limpe a busca para ver suas reservas.'
+                                    : 'Encontre salas privativas, estações de coworking ou auditórios ideais para o seu trabalho.'}
                             </p>
-                            <a href={href('home')} className={`${primaryButton} mt-6 inline-block`}>
-                                Ver Espaços Disponíveis
-                            </a>
+                            {searchQuery.trim() ? (
+                                <button
+                                    type="button"
+                                    onClick={() => setSearchQuery('')}
+                                    className={`${secondaryButton} mt-6`}
+                                >
+                                    Limpar busca
+                                </button>
+                            ) : (
+                                <a href={href('home')} className={`${primaryButton} mt-6 inline-block`}>
+                                    Ver Espaços Disponíveis
+                                </a>
+                            )}
                         </div>
                     ) : (
-                        bookings.map((booking) => (
-                            <div
+                        filteredBookings.map((booking) => (
+                            <article
                                 key={booking.id}
                                 className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col md:flex-row md:items-center justify-between gap-6"
                             >
@@ -203,9 +278,16 @@ export default function MyBookings() {
                                         </h2>
                                         {getStatusBadge(booking.status)}
                                         {booking.voucher_code && (
-                                            <span className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-600">
-                                                {booking.voucher_code}
-                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopyVoucher(booking.voucher_code!)}
+                                                title="Copiar código do voucher"
+                                                className="font-mono text-xs font-semibold px-2.5 py-0.5 rounded-md bg-slate-100 text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition cursor-pointer"
+                                            >
+                                                {copiedCode === booking.voucher_code
+                                                    ? 'Copiado!'
+                                                    : booking.voucher_code}
+                                            </button>
                                         )}
                                     </div>
 
@@ -256,7 +338,7 @@ export default function MyBookings() {
                                             onClick={() => setSelectedVoucher(booking)}
                                             className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition cursor-pointer flex items-center gap-1.5"
                                         >
-                                            <span>📄</span> Comprovante
+                                            <span aria-hidden="true">📄</span> Comprovante
                                         </button>
 
                                         {booking.can_cancel && (
@@ -273,7 +355,7 @@ export default function MyBookings() {
                                         )}
                                     </div>
                                 </div>
-                            </div>
+                            </article>
                         ))
                     )}
                 </div>
@@ -281,20 +363,48 @@ export default function MyBookings() {
 
             {/* Modal de Comprovante de Reserva */}
             {selectedVoucher && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-fadeIn"
+                    onPointerDown={(e) => {
+                        if (e.target === e.currentTarget) setSelectedVoucher(null)
+                    }}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="voucher-modal-title"
+                        className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-6"
+                    >
                         {/* Header do Comprovante */}
                         <div className="flex items-start justify-between border-b border-slate-100 pb-4">
                             <div>
                                 <span className="text-xs font-bold uppercase tracking-wider text-indigo-600">
                                     Comprovante de Reserva
                                 </span>
-                                <h2 className="text-xl font-extrabold text-slate-900 mt-0.5">
+                                <h2 id="voucher-modal-title" className="text-xl font-extrabold text-slate-900 mt-0.5">
                                     {selectedVoucher.space?.name || selectedVoucher.space_name || 'Espaço de Coworking'}
                                 </h2>
-                                <span className="font-mono text-xs text-slate-500">
-                                    Código: {selectedVoucher.voucher_code || `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`}
-                                </span>
+                                <div className="mt-1 flex items-center gap-2">
+                                    <span className="font-mono text-xs text-slate-500">
+                                        Código: {selectedVoucher.voucher_code || `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`}
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            handleCopyVoucher(
+                                                selectedVoucher.voucher_code ||
+                                                    `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`,
+                                            )
+                                        }
+                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                                    >
+                                        {copiedCode ===
+                                        (selectedVoucher.voucher_code ||
+                                            `CWK-${selectedVoucher.id.toString().padStart(6, '0')}`)
+                                            ? 'Copiado!'
+                                            : 'Copiar'}
+                                    </button>
+                                </div>
                             </div>
                             <div>{getStatusBadge(selectedVoucher.status)}</div>
                         </div>
@@ -353,7 +463,7 @@ export default function MyBookings() {
                                 onClick={() => window.print()}
                                 className={primaryButton}
                             >
-                                🖨️ Imprimir / Salvar PDF
+                                <span aria-hidden="true">🖨️</span> Imprimir / Salvar PDF
                             </button>
                         </div>
                     </div>
@@ -362,13 +472,30 @@ export default function MyBookings() {
 
             {/* Modal de Confirmação de Cancelamento com Motivo */}
             {cancellingId !== null && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fadeIn">
-                    <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4">
-                        <div className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xl">
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4 animate-fadeIn"
+                    onPointerDown={(e) => {
+                        if (e.target === e.currentTarget && !cancelMutation.isPending) {
+                            setCancellingId(null)
+                        }
+                    }}
+                >
+                    <div
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="cancel-booking-modal-title"
+                        className="bg-white rounded-3xl p-6 sm:p-7 max-w-md w-full shadow-2xl border border-slate-100 space-y-4"
+                    >
+                        <div
+                            aria-hidden="true"
+                            className="w-12 h-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center text-xl"
+                        >
                             ⚠️
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-slate-900">Cancelar Reserva?</h2>
+                            <h2 id="cancel-booking-modal-title" className="text-lg font-bold text-slate-900">
+                                Cancelar Reserva?
+                            </h2>
                             <p className="text-sm text-slate-500 mt-1">
                                 O horário selecionado será liberado para outros usuários. Esta ação não
                                 pode ser desfeita.
