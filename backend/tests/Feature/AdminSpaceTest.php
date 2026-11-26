@@ -165,4 +165,60 @@ class AdminSpaceTest extends TestCase
 
         $this->assertDatabaseHas('bookings', ['id' => $booking->id, 'status' => Booking::STATUS_PENDING]);
     }
+
+    public function test_regular_user_cannot_access_admin_bookings_or_metrics(): void
+    {
+        $user = User::factory()->create(['role' => User::ROLE_USER]);
+        $token = $user->createApiToken('user-test');
+        $booking = Booking::factory()->create(['status' => Booking::STATUS_PENDING]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/bookings')
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->patchJson("/api/admin/bookings/{$booking->id}/status", [
+                'status' => Booking::STATUS_CONFIRMED,
+            ])
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/metrics')
+            ->assertStatus(403);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->getJson('/api/admin/dashboard')
+            ->assertStatus(403);
+    }
+
+    public function test_admin_cannot_reactivate_cancelled_booking_when_slot_is_taken(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $token = $admin->createApiToken('admin-test');
+
+        $space = Space::factory()->create(['is_active' => true, 'opening_hours' => null]);
+        $start = now()->addDays(4)->setHour(10)->setMinute(0)->setSecond(0);
+        $end = (clone $start)->addHours(2);
+
+        $cancelled = Booking::factory()->create([
+            'space_id' => $space->id,
+            'start_time' => $start,
+            'end_time' => $end,
+            'status' => Booking::STATUS_CANCELLED,
+        ]);
+
+        Booking::factory()->create([
+            'space_id' => $space->id,
+            'start_time' => $start,
+            'end_time' => $end,
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->patchJson("/api/admin/bookings/{$cancelled->id}/status", [
+                'status' => Booking::STATUS_CONFIRMED,
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['booking_conflict']);
+    }
 }

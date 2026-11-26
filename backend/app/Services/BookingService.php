@@ -25,15 +25,32 @@ class BookingService
         CarbonInterface $endTime,
         ?int $excludeBookingId = null
     ): void {
+        $startUtc = $startTime->copy()->utc();
+        $endUtc = $endTime->copy()->utc();
+
         $overlapExists = Booking::query()
             ->where('space_id', $space->id)
-            ->overlapping($startTime, $endTime, $excludeBookingId)
+            ->overlapping($startUtc, $endUtc, $excludeBookingId)
             ->exists();
 
         if ($overlapExists) {
             throw ValidationException::withMessages([
                 'booking_conflict' => ['Este espaço já possui uma reserva no horário selecionado. Escolha outro intervalo.'],
                 'start_time' => ['Horário conflitante com outra reserva ativa.'],
+            ]);
+        }
+    }
+
+    /**
+     * Valida se o horário de início não está no passado.
+     *
+     * @throws ValidationException
+     */
+    public function validateNotInPast(CarbonInterface $startTime): void
+    {
+        if ($startTime->copy()->utc()->lt(now()->utc())) {
+            throw ValidationException::withMessages([
+                'start_time' => ['O horário de início não pode ser no passado.'],
             ]);
         }
     }
@@ -74,6 +91,12 @@ class BookingService
             if (empty($dayConfig['enabled'])) {
                 throw ValidationException::withMessages([
                     'start_time' => ['O espaço não funciona no dia selecionado.'],
+                ]);
+            }
+
+            if (! $startTime->isSameDay($endTime)) {
+                throw ValidationException::withMessages([
+                    'end_time' => ['A reserva deve começar e terminar no mesmo dia dentro do horário de funcionamento.'],
                 ]);
             }
 
@@ -145,24 +168,27 @@ class BookingService
         $startTime = Carbon::parse($data['start_time']);
         $endTime = Carbon::parse($data['end_time']);
 
-        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $data) {
+        $startUtc = $startTime->copy()->utc();
+        $endUtc = $endTime->copy()->utc();
+
+        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $startUtc, $endUtc, $data) {
             $space = Space::query()->whereKey($space->id)->lockForUpdate()->first();
             if (! $space || ! $space->is_active) {
                 throw ValidationException::withMessages([
                     'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
                 ]);
             }
-
+            $this->validateNotInPast($startUtc);
             $this->validateWorkingHours($space, $startTime, $endTime);
-            $this->validateNoOverlap($space, $startTime, $endTime);
+            $this->validateNoOverlap($space, $startUtc, $endUtc);
 
-            $totalPrice = $this->calculateTotalPrice($space, $startTime, $endTime);
+            $totalPrice = $this->calculateTotalPrice($space, $startUtc, $endUtc);
 
             return Booking::create([
                 'user_id' => $user->id,
                 'space_id' => $space->id,
-                'start_time' => $startTime,
-                'end_time' => $endTime,
+                'start_time' => $startUtc,
+                'end_time' => $endUtc,
                 'total_price' => $totalPrice,
                 'status' => Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
@@ -193,9 +219,13 @@ class BookingService
      */
     public function cancelBooking(Booking $booking, User $user, ?string $reason = null): Booking
     {
-        if (! $booking->canBeCancelledBy($user)) {
+        if (! $user->isAdmin() && $booking->user_id !== $user->id) {
+            abort(403, 'Você não tem permissão para cancelar esta reserva.');
+        }
+
+        if ($booking->status === Booking::STATUS_CANCELLED || $booking->status === Booking::STATUS_COMPLETED) {
             throw ValidationException::withMessages([
-                'booking' => ['Esta reserva não pode ser cancelada ou você não possui permissão.'],
+                'booking' => ['Esta reserva não pode mais ser cancelada.'],
             ]);
         }
 
@@ -215,6 +245,7 @@ class BookingService
     public function getAdminMetrics(): array
     {
         $totalBookings = Booking::count();
+        $pendingBookings = Booking::where('status', Booking::STATUS_PENDING)->count();
         $confirmedBookings = Booking::where('status', Booking::STATUS_CONFIRMED)->count();
         $cancelledBookings = Booking::where('status', Booking::STATUS_CANCELLED)->count();
         $completedBookings = Booking::where('status', Booking::STATUS_COMPLETED)->count();
@@ -238,6 +269,7 @@ class BookingService
 
         return [
             'total_bookings' => $totalBookings,
+            'pending_bookings' => $pendingBookings,
             'confirmed_bookings' => $confirmedBookings,
             'cancelled_bookings' => $cancelledBookings,
             'completed_bookings' => $completedBookings,

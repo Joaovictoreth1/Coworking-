@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
@@ -26,16 +27,24 @@ class BookingController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $validated = $request->validate([
+            'status' => ['nullable', 'string', Rule::in(Booking::ALL_STATUSES)],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ], [
+            'status.in' => 'Status de filtro inválido.',
+        ]);
+
         $query = $request->user()
             ->bookings()
             ->with(['space', 'user'])
             ->latest('start_time');
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
+        if (! empty($validated['status'])) {
+            $query->where('status', $validated['status']);
         }
 
-        $bookings = $query->paginate((int) $request->query('per_page', 15));
+        $perPage = (int) ($validated['per_page'] ?? 15);
+        $bookings = $query->paginate($perPage);
 
         return BookingResource::collection($bookings);
     }
@@ -79,7 +88,14 @@ class BookingController extends Controller
      */
     public function cancel(Request $request, Booking $booking): JsonResponse
     {
-        $reason = $request->input('reason');
+        $validated = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ], [
+            'reason.string' => 'O motivo do cancelamento deve ser um texto válido.',
+            'reason.max' => 'O motivo do cancelamento não pode exceder 500 caracteres.',
+        ]);
+
+        $reason = $validated['reason'] ?? null;
         $updated = $this->bookingService->cancelBooking($booking, $request->user(), $reason);
         $updated->load(['space', 'user']);
 
@@ -94,15 +110,32 @@ class BookingController extends Controller
      */
     public function preview(Request $request, Space $space): JsonResponse
     {
-        $request->validate([
-            'start_time' => ['required', 'date'],
+        $validated = $request->validate([
+            'start_time' => ['required', 'date', 'after_or_equal:now'],
             'end_time' => ['required', 'date', 'after:start_time'],
+        ], [
+            'start_time.required' => 'O horário de início da reserva é obrigatório.',
+            'start_time.date' => 'O horário de início deve ser uma data válida.',
+            'start_time.after_or_equal' => 'O horário de início não pode ser no passado.',
+            'end_time.required' => 'O horário de término da reserva é obrigatório.',
+            'end_time.date' => 'O horário de término deve ser uma data válida.',
+            'end_time.after' => 'O horário de término deve ser posterior ao horário de início.',
         ]);
 
-        $startTime = Carbon::parse($request->input('start_time'));
-        $endTime = Carbon::parse($request->input('end_time'));
+        if (! $space->is_active) {
+            return response()->json([
+                'available' => false,
+                'total_price' => 0.00,
+                'errors' => ['space_id' => ['Este espaço está temporariamente inativo para reservas.']],
+                'message' => 'Este espaço está temporariamente inativo para reservas.',
+            ], 422);
+        }
+
+        $startTime = Carbon::parse($validated['start_time']);
+        $endTime = Carbon::parse($validated['end_time']);
 
         try {
+            $this->bookingService->validateNotInPast($startTime);
             $this->bookingService->validateWorkingHours($space, $startTime, $endTime);
             $this->bookingService->validateNoOverlap($space, $startTime, $endTime);
             $price = $this->bookingService->calculateTotalPrice($space, $startTime, $endTime);
@@ -114,11 +147,13 @@ class BookingController extends Controller
                 'message' => 'Horário disponível para reserva.',
             ]);
         } catch (ValidationException $e) {
+            $firstMessage = collect($e->errors())->flatten()->first() ?? $e->getMessage();
+
             return response()->json([
                 'available' => false,
                 'total_price' => 0.00,
                 'errors' => $e->errors(),
-                'message' => current(current($e->errors())),
+                'message' => $firstMessage,
             ], 422);
         }
     }

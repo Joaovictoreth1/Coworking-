@@ -42,6 +42,7 @@ export function useCreateBookingMutation(spaceId: number) {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva confirmada com sucesso! 🚀')
@@ -62,6 +63,7 @@ export function useCancelBookingMutation() {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             toast.success('Reserva cancelada com sucesso.')
@@ -118,6 +120,7 @@ export function useAdminUpdateBookingStatusMutation() {
             queryClient.invalidateQueries({ queryKey: ['admin-bookings'] })
             queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
             queryClient.invalidateQueries({ queryKey: ['bookings'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             toast.success('Status da reserva atualizado com sucesso!')
         },
         onError: (err: unknown) => {

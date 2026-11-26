@@ -141,6 +141,7 @@ export interface Booking {
 
 export interface AdminMetrics {
     total_bookings: number
+    pending_bookings?: number
     confirmed_bookings: number
     cancelled_bookings: number
     completed_bookings: number
