@@ -6,6 +6,7 @@ import {
     useAdminMetricsQuery,
     useAdminUpdateBookingStatusMutation,
 } from '../../hooks/useBookings'
+import { formatBookingDate, formatBookingTime } from '../../lib/bookingTime'
 import { href } from '../../lib/route'
 import { formatBRL, type Booking } from '../../lib/spaces'
 import { primaryButton, secondaryButton } from '../../lib/ui'
@@ -351,18 +352,11 @@ export default function AdminDashboard() {
                                             </td>
                                             <td className="py-3.5 px-5 whitespace-nowrap">
                                                 <div>
-                                                    {new Date(b.start_time).toLocaleDateString('pt-BR')}
+                                                    {formatBookingDate(b.start_time, b.timezone)}
                                                 </div>
                                                 <div className="text-[11px] text-slate-400">
-                                                    {new Date(b.start_time).toLocaleTimeString('pt-BR', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}{' '}
-                                                    às{' '}
-                                                    {new Date(b.end_time).toLocaleTimeString('pt-BR', {
-                                                        hour: '2-digit',
-                                                        minute: '2-digit',
-                                                    })}{' '}
+                                                    {formatBookingTime(b.start_time, b.timezone)} às{' '}
+                                                    {formatBookingTime(b.end_time, b.timezone)}{' '}
                                                     ({b.duration_hours}h)
                                                 </div>
                                             </td>
