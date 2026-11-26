@@ -95,7 +95,7 @@ export interface ReviewSummary {
 /* --------------------------- Constantes --------------------------- */
 
 export type PriceType = 'free' | 'hourly' | 'daily' | 'monthly'
-export type SortKey = 'recent' | 'price_asc' | 'price_desc' | 'rating'
+export type SortKey = 'recent' | 'price_asc' | 'price_desc' | 'rating' | 'distance'
 
 export interface FilterState {
     priceType: PriceType | ''
@@ -312,6 +312,8 @@ export interface SpaceFilters {
     minPrice?: string // texto digitado ("35,50")
     maxPrice?: string
     sort?: SortKey
+    lat?: number
+    lng?: number
 }
 
 function filtersToQuery(f: SpaceFilters): string {
@@ -326,6 +328,10 @@ function filtersToQuery(f: SpaceFilters): string {
         if (max !== null) qs.set('max_price', String(max))
     }
     if (f.sort && f.sort !== 'recent') qs.set('sort', f.sort)
+    if (typeof f.lat === 'number' && typeof f.lng === 'number') {
+        qs.set('lat', String(f.lat))
+        qs.set('lng', String(f.lng))
+    }
     const query = qs.toString()
     return query ? `?${query}` : ''
 }

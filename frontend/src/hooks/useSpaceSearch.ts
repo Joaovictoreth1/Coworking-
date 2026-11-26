@@ -18,9 +18,14 @@ const DEBOUNCE_MS = 350
  * Toda a lógica de negócio da vitrine pública: busca com debounce, filtros,
  * paginação, cache (React Query) e favorito otimista. A Home só apresenta.
  */
-export function useSpaceSearch() {
+export function useSpaceSearch(options?: {
+    coords?: { lat: number; lng: number } | null
+    sortByDistance?: boolean
+}) {
     const { user } = useAuth()
     const queryClient = useQueryClient()
+    const coords = options?.coords ?? null
+    const sortByDistance = Boolean(options?.sortByDistance && coords)
 
     const [search, setSearch] = useState('')
     const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS)
@@ -49,9 +54,13 @@ export function useSpaceSearch() {
         return () => clearTimeout(timer)
     }, [search, filters, applied])
 
+    const effectiveSort = sortByDistance ? ('distance' as const) : applied.sort
+    const lat = sortByDistance ? coords?.lat : undefined
+    const lng = sortByDistance ? coords?.lng : undefined
+
     const queryKey = useMemo(
-        () => ['spaces', { ...applied, page, userId: user?.id ?? null }] as const,
-        [applied, page, user?.id],
+        () => ['spaces', { ...applied, sort: effectiveSort, lat, lng, page, userId: user?.id ?? null }] as const,
+        [applied, effectiveSort, lat, lng, page, user?.id],
     )
 
     const query = useQuery({
@@ -63,7 +72,9 @@ export function useSpaceSearch() {
                 priceType: applied.priceType,
                 minPrice: applied.minPrice,
                 maxPrice: applied.maxPrice,
-                sort: applied.sort,
+                sort: effectiveSort,
+                lat,
+                lng,
             }),
         // Mantém os cards anteriores visíveis (com leve opacidade) enquanto a próxima página carrega.
         placeholderData: keepPreviousData,

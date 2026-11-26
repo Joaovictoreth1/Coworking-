@@ -99,4 +99,17 @@ class SaoPauloCoworkingsTest extends TestCase
             ->assertJsonPath('data.latitude', null)
             ->assertJsonPath('data.longitude', null);
     }
+
+    public function test_public_search_sorts_all_pages_by_distance_before_paginating(): void
+    {
+        $admin = User::factory()->create();
+        $admin->forceFill(['role' => User::ROLE_ADMIN])->save();
+
+        $this->seed(SaoPauloCoworkings2026Seeder::class);
+
+        // WeWork Paulista 1374 tem o menor ID (ficaria na página 2 na ordenação padrão latest('id') com 20 registros)
+        $response = $this->getJson('/api/spaces?sort=distance&lat=-23.5629&lng=-46.6544');
+        $response->assertOk()
+            ->assertJsonPath('data.0.name', 'WeWork Paulista 1374');
+    }
 }

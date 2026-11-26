@@ -26,6 +26,8 @@ const QUICK_PRESETS: { label: string; priceType: FilterState['priceType']; sort?
 export default function Home() {
     const { user } = useAuth()
     const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid')
+    const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
+    const [sortByDistance, setSortByDistance] = useState(false)
     const {
         search,
         setSearch,
@@ -42,7 +44,7 @@ export default function Home() {
         errorMessage,
         filtersOn,
         favorites,
-    } = useSpaceSearch()
+    } = useSpaceSearch({ coords: userCoords, sortByDistance })
 
     return (
         <ComponentBody>
@@ -291,6 +293,17 @@ export default function Home() {
                                 spaces={items}
                                 activeSearch={search}
                                 filtersOn={filtersOn}
+                                userCoords={userCoords}
+                                sortByDistance={sortByDistance}
+                                onUserCoordsChange={(coords) => {
+                                    setUserCoords(coords)
+                                    setSortByDistance(true)
+                                    goToPage(1)
+                                }}
+                                onToggleSortByDistance={() => {
+                                    setSortByDistance((v) => !v)
+                                    goToPage(1)
+                                }}
                                 onSelectHub={(hubQuery) => setSearch(hubQuery)}
                                 onClearAll={clearAll}
                             />

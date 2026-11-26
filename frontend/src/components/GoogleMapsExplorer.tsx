@@ -25,6 +25,10 @@ interface GoogleMapsExplorerProps {
     spaces: Space[]
     activeSearch: string
     filtersOn?: boolean
+    userCoords: { lat: number; lng: number } | null
+    sortByDistance: boolean
+    onUserCoordsChange: (coords: { lat: number; lng: number }) => void
+    onToggleSortByDistance: () => void
     onSelectHub: (query: string) => void
     onClearAll?: () => void
 }
@@ -33,14 +37,16 @@ export default function GoogleMapsExplorer({
     spaces,
     activeSearch,
     filtersOn = false,
+    userCoords,
+    sortByDistance,
+    onUserCoordsChange,
+    onToggleSortByDistance,
     onSelectHub,
     onClearAll,
 }: GoogleMapsExplorerProps) {
     const [selectedId, setSelectedId] = useState<number | null>(null)
-    const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null)
     const [locating, setLocating] = useState(false)
     const [geoError, setGeoError] = useState('')
-    const [sortByDistance, setSortByDistance] = useState(false)
 
     function handleLocateMe() {
         if (!('geolocation' in navigator)) {
@@ -51,8 +57,7 @@ export default function GoogleMapsExplorer({
         setGeoError('')
         navigator.geolocation.getCurrentPosition(
             (pos) => {
-                setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude })
-                setSortByDistance(true)
+                onUserCoordsChange({ lat: pos.coords.latitude, lng: pos.coords.longitude })
                 setLocating(false)
             },
             () => {
@@ -144,7 +149,7 @@ export default function GoogleMapsExplorer({
                             <button
                                 type="button"
                                 aria-pressed={sortByDistance}
-                                onClick={() => setSortByDistance((v) => !v)}
+                                onClick={onToggleSortByDistance}
                                 className={`inline-flex h-8 items-center rounded-xl border px-3 text-xs font-semibold transition cursor-pointer ${
                                     sortByDistance
                                         ? 'border-indigo-600 bg-indigo-600 text-white'
