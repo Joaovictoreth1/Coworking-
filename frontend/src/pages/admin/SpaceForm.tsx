@@ -9,7 +9,7 @@ import Field from '../../components/Field'
 import { ArrowLeftIcon } from '../../components/icons'
 import { ApiError } from '../../lib/api'
 import { clearFlash, peekFlash, setFlash } from '../../lib/flash'
-import { getGoogleMapsPlaceUrl } from '../../lib/maps'
+import { getGoogleMapsEmbedUrl, getGoogleMapsPlaceUrl } from '../../lib/maps'
 import { href, navigate } from '../../lib/route'
 import {
     STATES,
@@ -295,6 +295,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const [loadError, setLoadError] = useState('')
     const [reloadKey, setReloadKey] = useState(0)
     const [submitting, setSubmitting] = useState(false)
+    const [showMapPreview, setShowMapPreview] = useState(false)
 
     const photosRef = useRef(photos)
     useEffect(() => {
@@ -684,29 +685,52 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                     ? null
                                     : parseCoordinate(form.longitude, -180, 180).value
 
+                                const previewTarget = {
+                                    name: form.name.trim() || 'Coworking',
+                                    street: form.street.trim(),
+                                    number: form.number.trim() || null,
+                                    neighborhood: form.neighborhood.trim() || null,
+                                    city: form.city.trim() || 'São Paulo',
+                                    state: form.state || 'SP',
+                                    latitude: previewLat,
+                                    longitude: previewLng,
+                                }
+
                                 return (
-                                    <div className="space-y-1 pt-1">
-                                        <a
-                                            href={getGoogleMapsPlaceUrl({
-                                                name: form.name.trim() || 'Coworking',
-                                                street: form.street.trim(),
-                                                number: form.number.trim() || null,
-                                                neighborhood: form.neighborhood.trim() || null,
-                                                city: form.city.trim() || 'São Paulo',
-                                                state: form.state || 'SP',
-                                                latitude: previewLat,
-                                                longitude: previewLng,
-                                            })}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
-                                        >
-                                            Conferir localização no Google Maps →
-                                        </a>
+                                    <div className="space-y-2 pt-1">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <a
+                                                href={getGoogleMapsPlaceUrl(previewTarget)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                                            >
+                                                Conferir localização no Google Maps →
+                                            </a>
+                                            <button
+                                                type="button"
+                                                aria-expanded={showMapPreview}
+                                                onClick={() => setShowMapPreview((v) => !v)}
+                                                className="text-xs font-semibold text-slate-700 underline decoration-slate-300 underline-offset-2 hover:text-indigo-600 cursor-pointer"
+                                            >
+                                                {showMapPreview ? 'Ocultar prévia do mapa' : 'Pré-visualizar mapa aqui'}
+                                            </button>
+                                        </div>
                                         {gpsStale && (
                                             <p className="text-xs text-amber-700">
                                                 Endereço alterado: a prévia usa o novo endereço e o GPS antigo será limpo ao salvar (ou informe novas coordenadas).
                                             </p>
+                                        )}
+                                        {showMapPreview && (
+                                            <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                                                <iframe
+                                                    title={`Prévia no Google Maps de ${previewTarget.name}`}
+                                                    src={getGoogleMapsEmbedUrl(previewTarget)}
+                                                    loading="lazy"
+                                                    referrerPolicy="no-referrer-when-downgrade"
+                                                    className="h-56 w-full border-0"
+                                                />
+                                            </div>
                                         )}
                                     </div>
                                 )

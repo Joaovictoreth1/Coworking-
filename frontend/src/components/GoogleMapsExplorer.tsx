@@ -7,7 +7,9 @@ import {
     getGoogleMapsEmbedUrl,
     getGoogleMapsPlaceUrl,
     getSaoPauloCityMapEmbedUrl,
+    getWazeDirectionsUrl,
     hasCoordinates,
+    type MapLayer,
 } from '../lib/maps'
 import { href } from '../lib/route'
 import {
@@ -47,6 +49,9 @@ export default function GoogleMapsExplorer({
     const [selectedId, setSelectedId] = useState<number | null>(null)
     const [locating, setLocating] = useState(false)
     const [geoError, setGeoError] = useState('')
+    const [mapLayer, setMapLayer] = useState<MapLayer>('m')
+    const [copiedAddress, setCopiedAddress] = useState(false)
+    const todayDay = new Date().getDay()
 
     function handleLocateMe() {
         if (!('geolocation' in navigator)) {
@@ -94,8 +99,8 @@ export default function GoogleMapsExplorer({
     }, [orderedSpaces, selectedId])
 
     const embedSrc = selected
-        ? getGoogleMapsEmbedUrl(selected)
-        : getSaoPauloCityMapEmbedUrl(activeSearch)
+        ? getGoogleMapsEmbedUrl(selected, 16, mapLayer)
+        : getSaoPauloCityMapEmbedUrl(activeSearch, mapLayer)
 
     const mainPrice = selected
         ? selected.is_free
@@ -128,6 +133,36 @@ export default function GoogleMapsExplorer({
                         </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                        <div
+                            role="group"
+                            aria-label="Camada do mapa"
+                            className="inline-flex h-8 rounded-xl border border-slate-200 bg-slate-50 p-0.5"
+                        >
+                            <button
+                                type="button"
+                                aria-pressed={mapLayer === 'm'}
+                                onClick={() => setMapLayer('m')}
+                                className={`rounded-lg px-2.5 text-xs font-semibold transition cursor-pointer ${
+                                    mapLayer === 'm'
+                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Mapa
+                            </button>
+                            <button
+                                type="button"
+                                aria-pressed={mapLayer === 'k'}
+                                onClick={() => setMapLayer('k')}
+                                className={`rounded-lg px-2.5 text-xs font-semibold transition cursor-pointer ${
+                                    mapLayer === 'k'
+                                        ? 'bg-indigo-600 text-white shadow-xs'
+                                        : 'text-slate-600 hover:text-slate-900'
+                                }`}
+                            >
+                                Satélite
+                            </button>
+                        </div>
                         <button
                             type="button"
                             onClick={handleLocateMe}
@@ -219,6 +254,9 @@ export default function GoogleMapsExplorer({
                         orderedSpaces.map((space) => {
                             const isSelected = selected?.id === space.id
                             const dist = distances.get(space.id)
+                            const todayHours = space.opening_hours?.find(
+                                (d) => d.day === todayDay && d.enabled,
+                            )
                             const firstPrice = space.is_free
                                 ? 'Gratuito'
                                 : (() => {
@@ -277,6 +315,11 @@ export default function GoogleMapsExplorer({
                                             {dist !== undefined && (
                                                 <span className="rounded bg-indigo-50 px-1.5 py-0.5 font-semibold text-indigo-700">
                                                     {formatDistance(dist)}
+                                                </span>
+                                            )}
+                                            {todayHours && (
+                                                <span className="rounded bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
+                                                    Hoje {todayHours.from}–{todayHours.to}
                                                 </span>
                                             )}
                                             {hasCoordinates(space) && (
@@ -347,6 +390,25 @@ export default function GoogleMapsExplorer({
                                 </div>
                             </div>
                             <div className="flex flex-wrap gap-2 shrink-0">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        void navigator.clipboard?.writeText(formatAddress(selected))
+                                        setCopiedAddress(true)
+                                        setTimeout(() => setCopiedAddress(false), 2000)
+                                    }}
+                                    className={`${secondaryButton} !h-9 !rounded-xl !px-3 text-xs`}
+                                >
+                                    {copiedAddress ? 'Copiado!' : 'Copiar endereço'}
+                                </button>
+                                <a
+                                    href={getWazeDirectionsUrl(selected)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className={`${secondaryButton} !h-9 !rounded-xl !px-3 text-xs`}
+                                >
+                                    Waze
+                                </a>
                                 <a
                                     href={getGoogleMapsDirectionsUrl(selected)}
                                     target="_blank"

@@ -20,7 +20,9 @@ import {
     getGoogleMapsDirectionsUrl,
     getGoogleMapsEmbedUrl,
     getGoogleMapsPlaceUrl,
+    getWazeDirectionsUrl,
     hasCoordinates,
+    type MapLayer,
 } from '../lib/maps'
 import { href } from '../lib/route'
 import {
@@ -78,6 +80,8 @@ export default function SpaceDetail({ id }: { id: number }) {
     const [reloadKey, setReloadKey] = useState(0)
     const [active, setActive] = useState(0)
     const [lightboxOpen, setLightboxOpen] = useState(false)
+    const [copiedAddress, setCopiedAddress] = useState(false)
+    const [mapLayer, setMapLayer] = useState<MapLayer>('m')
     const addToast = useToastStore((s) => s.addToast)
 
     useEffect(() => {
@@ -418,7 +422,56 @@ export default function SpaceDetail({ id }: { id: number }) {
                                         <span>{formatAddress(space)}</span>
                                     </p>
                                 </div>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div
+                                        role="group"
+                                        aria-label="Camada do mapa"
+                                        className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 shadow-xs"
+                                    >
+                                        <button
+                                            type="button"
+                                            aria-pressed={mapLayer === 'm'}
+                                            onClick={() => setMapLayer('m')}
+                                            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                                                mapLayer === 'm'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            Mapa
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-pressed={mapLayer === 'k'}
+                                            onClick={() => setMapLayer('k')}
+                                            className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition cursor-pointer ${
+                                                mapLayer === 'k'
+                                                    ? 'bg-indigo-600 text-white'
+                                                    : 'text-slate-600 hover:text-slate-900'
+                                            }`}
+                                        >
+                                            Satélite
+                                        </button>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            void navigator.clipboard?.writeText(formatAddress(space))
+                                            setCopiedAddress(true)
+                                            setTimeout(() => setCopiedAddress(false), 2000)
+                                        }}
+                                        className={`${secondaryButton} !h-9 !rounded-xl !px-3 text-xs`}
+                                    >
+                                        {copiedAddress ? 'Endereço copiado!' : 'Copiar endereço'}
+                                    </button>
+                                    <a
+                                        href={getWazeDirectionsUrl(space)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className={`${secondaryButton} !h-9 !rounded-xl !px-3 text-xs`}
+                                    >
+                                        Waze
+                                    </a>
                                     <a
                                         href={getGoogleMapsDirectionsUrl(space)}
                                         target="_blank"
@@ -433,14 +486,14 @@ export default function SpaceDetail({ id }: { id: number }) {
                                         rel="noopener noreferrer"
                                         className={`${secondaryButton} !h-9 !rounded-xl !px-3.5 text-xs`}
                                     >
-                                        Abrir no Google Maps
+                                        Google Maps
                                     </a>
                                 </div>
                             </div>
                             <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-xs">
                                 <iframe
                                     title={`Mapa Google Maps de ${space.name}`}
-                                    src={getGoogleMapsEmbedUrl(space)}
+                                    src={getGoogleMapsEmbedUrl(space, 16, mapLayer)}
                                     loading="lazy"
                                     referrerPolicy="no-referrer-when-downgrade"
                                     className="h-72 w-full border-0 sm:h-80"
