@@ -41,6 +41,7 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
             <form onSubmit={handleSubmit} className="space-y-5">
                 <Field
                     label="E-mail"
+                    name="email"
                     type="email"
                     autoComplete="email"
                     placeholder="voce@exemplo.com"
@@ -50,6 +51,7 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
                 />
                 <Field
                     label="Senha"
+                    name="password"
                     type="password"
                     autoComplete="current-password"
                     placeholder="Sua senha"
@@ -60,7 +62,7 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
                 {message && (
                     <p
                         role="alert"
-                        className="rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
+                        className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700"
                     >
                         {message}
                     </p>
@@ -68,7 +70,7 @@ export default function Login({ onGoRegister }: { onGoRegister: () => void }) {
                 <button
                     type="submit"
                     disabled={submitting}
-                    className="h-11 w-full rounded-md bg-indigo-600 font-medium text-white transition hover:bg-indigo-500 disabled:opacity-60"
+                    className="h-11 w-full rounded-xl bg-indigo-600 font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-60 cursor-pointer"
                 >
                     {submitting ? 'Entrando...' : 'Entrar'}
                 </button>

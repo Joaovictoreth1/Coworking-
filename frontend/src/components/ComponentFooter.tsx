@@ -1,5 +1,6 @@
+import { useAuth } from '../auth/context'
 import { href } from '../lib/route'
-import { APP_NAME, NAV_DROPDOWN, NAV_LINKS, type NavLink } from '../lib/site'
+import { APP_NAME, NAV_LINKS, type NavLink } from '../lib/site'
 import Container from './Container'
 import Logo from './Logo'
 
@@ -24,8 +25,26 @@ function FooterColumn({ title, links }: { title: string; links: NavLink[] }) {
 }
 
 export default function ComponentFooter() {
+    const { user } = useAuth()
+
+    const accountLinks: NavLink[] = user
+        ? [
+              ...(user.is_admin
+                  ? [{ label: 'Dashboard Admin', href: href('admin-dashboard') }]
+                  : []),
+              {
+                  label: user.is_admin ? 'Gerenciar locais' : 'Meus locais',
+                  href: href('spaces'),
+              },
+              ...(user.is_admin ? [{ label: 'Cadastrar novo local', href: href('space-new') }] : []),
+          ]
+        : [
+              { label: 'Entrar', href: href('login') },
+              { label: 'Criar conta grátis', href: href('register') },
+          ]
+
     return (
-        <footer className="mt-12 border-t border-slate-200/80 bg-white">
+        <footer className="mt-14 border-t border-slate-200/80 bg-white">
             <Container className="py-12">
                 <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr]">
                     <div className="sm:col-span-2 lg:col-span-1">
@@ -41,7 +60,10 @@ export default function ComponentFooter() {
                         </p>
                     </div>
                     <FooterColumn title="Navegação" links={NAV_LINKS} />
-                    <FooterColumn title={NAV_DROPDOWN.label} links={NAV_DROPDOWN.items} />
+                    <FooterColumn
+                        title={user ? (user.is_admin ? 'Gestão' : 'Espaços') : 'Conta'}
+                        links={accountLinks}
+                    />
                 </div>
                 <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center">
                     <p>© {new Date().getFullYear()} {APP_NAME}. Todos os direitos reservados.</p>

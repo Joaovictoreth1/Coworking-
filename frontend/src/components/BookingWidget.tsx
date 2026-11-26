@@ -17,6 +17,20 @@ function formatLocalDate(d: Date): string {
     return `${year}-${month}-${day}`
 }
 
+function getNextMonday(base: Date): string {
+    const d = new Date(base)
+    const day = d.getDay()
+    const diff = day === 0 ? 1 : 8 - day
+    d.setDate(d.getDate() + diff)
+    return formatLocalDate(d)
+}
+
+const TIME_PRESETS = [
+    { label: 'Manhã', range: '09–13h', start: '09:00', end: '13:00' },
+    { label: 'Tarde', range: '14–18h', start: '14:00', end: '18:00' },
+    { label: 'Dia todo', range: '09–18h', start: '09:00', end: '18:00' },
+] as const
+
 function toLocalIsoWithOffset(date: string, time: string): string {
     const local = new Date(`${date}T${time}:00`)
     if (Number.isNaN(local.getTime())) return ''
@@ -40,6 +54,17 @@ export function BookingWidget({ space }: BookingWidgetProps) {
         d.setDate(d.getDate() + 1)
         return formatLocalDate(d)
     }, [])
+
+    const nextMondayDate = useMemo(() => getNextMonday(new Date()), [])
+
+    const datePresets = useMemo(
+        () => [
+            { label: 'Hoje', value: todayDate },
+            { label: 'Amanhã', value: defaultDate },
+            { label: 'Próx. segunda', value: nextMondayDate },
+        ],
+        [todayDate, defaultDate, nextMondayDate],
+    )
 
     const [date, setDate] = useState<string>(defaultDate)
     const [startTime, setStartTime] = useState<string>('09:00')
@@ -176,18 +201,72 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             <form onSubmit={handleBook} className="mt-5 space-y-4">
                 {/* Data da Reserva */}
                 <div>
-                    <label htmlFor="booking-date" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
-                        Data
-                    </label>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <label htmlFor="booking-date" className="block text-xs font-bold uppercase tracking-wider text-slate-600">
+                            Data
+                        </label>
+                        <div className="flex items-center gap-1" role="group" aria-label="Atalhos de data">
+                            {datePresets.map((preset) => {
+                                const active = date === preset.value
+                                return (
+                                    <button
+                                        key={preset.label}
+                                        type="button"
+                                        onClick={() => setDate(preset.value)}
+                                        aria-pressed={active}
+                                        className={`rounded-lg px-2 py-0.5 text-[11px] font-semibold transition cursor-pointer ${
+                                            active
+                                                ? 'bg-indigo-600 text-white shadow-xs'
+                                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                        }`}
+                                    >
+                                        {preset.label}
+                                    </button>
+                                )
+                            })}
+                        </div>
+                    </div>
                     <input
                         id="booking-date"
+                        name="date"
                         type="date"
                         value={date}
                         min={todayDate}
                         onChange={(e) => setDate(e.target.value)}
-                        className={inputClass(isPastDateTime, 'py-2')}
+                        className={inputClass(isPastDateTime, 'py-2 rounded-xl')}
                         required
                     />
+                </div>
+
+                {/* Atalhos de Período */}
+                <div>
+                    <span className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                        Período rápido
+                    </span>
+                    <div className="grid grid-cols-3 gap-2" role="group" aria-label="Atalhos de período">
+                        {TIME_PRESETS.map((preset) => {
+                            const active = startTime === preset.start && endTime === preset.end
+                            return (
+                                <button
+                                    key={preset.label}
+                                    type="button"
+                                    aria-pressed={active}
+                                    onClick={() => {
+                                        setStartTime(preset.start)
+                                        setEndTime(preset.end)
+                                    }}
+                                    className={`flex flex-col items-center rounded-xl border px-2 py-2 text-center transition cursor-pointer ${
+                                        active
+                                            ? 'border-indigo-500 bg-indigo-50 text-indigo-800 shadow-xs'
+                                            : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                                    }`}
+                                >
+                                    <span className="text-xs font-semibold">{preset.label}</span>
+                                    <span className="text-[11px] text-slate-500">{preset.range}</span>
+                                </button>
+                            )
+                        })}
+                    </div>
                 </div>
 
                 {/* Intervalo de Horário */}
@@ -198,10 +277,11 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         </label>
                         <input
                             id="booking-start-time"
+                            name="start_time"
                             type="time"
                             value={startTime}
                             onChange={(e) => setStartTime(e.target.value)}
-                            className={inputClass(isInvalidOrder || isPastDateTime, 'py-2')}
+                            className={inputClass(isInvalidOrder || isPastDateTime, 'py-2 rounded-xl')}
                             required
                         />
                     </div>
@@ -211,10 +291,11 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         </label>
                         <input
                             id="booking-end-time"
+                            name="end_time"
                             type="time"
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
-                            className={inputClass(isInvalidOrder, 'py-2')}
+                            className={inputClass(isInvalidOrder, 'py-2 rounded-xl')}
                             required
                         />
                     </div>
@@ -227,12 +308,13 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     </label>
                     <textarea
                         id="booking-notes"
+                        name="notes"
                         rows={2}
                         maxLength={1000}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Ex: Reunião para 6 pessoas com projetor"
-                        className={inputClass(false, 'text-sm resize-none py-2')}
+                        className={inputClass(false, 'text-sm resize-none py-2 rounded-xl')}
                     />
                 </div>
 
@@ -278,16 +360,20 @@ export function BookingWidget({ space }: BookingWidgetProps) {
 
                 {/* Resumo do Valor Calculado */}
                 {canPreview && !isChecking && !errorMessage && preview?.available && (
-                    <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                    <div className="rounded-2xl border border-emerald-200/80 bg-emerald-50/50 p-4 space-y-2 text-xs">
+                        <div className="flex items-center gap-1.5 text-emerald-700 font-semibold">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                            Horário disponível para reserva imediata
+                        </div>
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>
                             <span className="font-semibold text-slate-900">
                                 {preview.duration_hours} {preview.duration_hours === 1 ? 'hora' : 'horas'}
                             </span>
                         </div>
-                        <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200/80">
+                        <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-emerald-200/70">
                             <span>Total estimado:</span>
-                            <span className="text-base text-emerald-600">
+                            <span className="text-base text-emerald-700">
                                 {preview.total_price === 0 ? 'Gratuito' : formatBRL(preview.total_price)}
                             </span>
                         </div>
@@ -298,7 +384,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 <button
                     type="submit"
                     disabled={user ? isBlocked : !space.is_active}
-                    className={`${primaryButton} w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
+                    className={`${primaryButton} !rounded-xl w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                     {createBooking.isPending ? (
                         <span className="flex items-center justify-center gap-2">
@@ -315,6 +401,10 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         'Confirmar Reserva'
                     )}
                 </button>
+
+                <p className="text-center text-[11px] text-slate-500">
+                    Confirmação imediata · Voucher digital na hora · Sem taxas ocultas
+                </p>
             </form>
         </aside>
     )
