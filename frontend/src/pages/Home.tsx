@@ -155,6 +155,22 @@ export default function Home() {
                                 </button>
                             )
                         })}
+                        <button
+                            type="button"
+                            aria-pressed={viewMode === 'map'}
+                            onClick={() => {
+                                setViewMode('map')
+                                if (!search.trim()) setSearch('São Paulo')
+                            }}
+                            className={`inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                                viewMode === 'map'
+                                    ? 'bg-emerald-400 text-slate-950 shadow-sm'
+                                    : 'bg-indigo-500/30 text-indigo-100 ring-1 ring-indigo-300/30 hover:bg-indigo-500/45'
+                            }`}
+                        >
+                            <MapPinIcon className="h-3.5 w-3.5" />
+                            Mapa SP (Google Maps)
+                        </button>
                     </div>
 
                     <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-300">
