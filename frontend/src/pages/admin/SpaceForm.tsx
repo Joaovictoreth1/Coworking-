@@ -278,6 +278,14 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const queryClient = useQueryClient()
 
     const [form, setForm] = useState<FormState>(emptyForm)
+    const [savedLocation, setSavedLocation] = useState<{
+        street: string
+        number: string
+        city: string
+        state: string
+        latitude: string
+        longitude: string
+    } | null>(null)
     const [photos, setPhotos] = useState<PhotoItem[]>([])
     const [removedIds, setRemovedIds] = useState<number[]>([])
     const [errors, setErrors] = useState<Errors>({})
@@ -304,7 +312,16 @@ export default function SpaceForm({ id }: { id: number | null }) {
     }, [])
 
     function applySpace(space: Space) {
-        setForm(fromSpace(space))
+        const next = fromSpace(space)
+        setForm(next)
+        setSavedLocation({
+            street: next.street.trim(),
+            number: next.number.trim(),
+            city: next.city.trim(),
+            state: next.state,
+            latitude: next.latitude.trim(),
+            longitude: next.longitude.trim(),
+        })
         setPhotos(space.photos.map((p) => ({ key: `photo-${p.id}`, id: p.id, url: p.url })))
         setRemovedIds([])
     }
@@ -649,27 +666,51 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                     />
                                 </div>
                             </div>
-                            {(form.street.trim() || (form.latitude.trim() && form.longitude.trim())) && (
-                                <div className="pt-1">
-                                    <a
-                                        href={getGoogleMapsPlaceUrl({
-                                            name: form.name.trim() || 'Coworking',
-                                            street: form.street.trim(),
-                                            number: form.number.trim() || null,
-                                            neighborhood: form.neighborhood.trim() || null,
-                                            city: form.city.trim() || 'São Paulo',
-                                            state: form.state || 'SP',
-                                            latitude: parseCoordinate(form.latitude, -90, 90).value,
-                                            longitude: parseCoordinate(form.longitude, -180, 180).value,
-                                        })}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
-                                    >
-                                        Conferir localização no Google Maps →
-                                    </a>
-                                </div>
-                            )}
+                            {(form.street.trim() || (form.latitude.trim() && form.longitude.trim())) && (() => {
+                                const addressRelocated =
+                                    savedLocation !== null &&
+                                    (form.street.trim() !== savedLocation.street ||
+                                        form.number.trim() !== savedLocation.number ||
+                                        form.city.trim() !== savedLocation.city ||
+                                        form.state !== savedLocation.state)
+                                const gpsStale =
+                                    addressRelocated &&
+                                    form.latitude.trim() === savedLocation.latitude &&
+                                    form.longitude.trim() === savedLocation.longitude
+                                const previewLat = gpsStale
+                                    ? null
+                                    : parseCoordinate(form.latitude, -90, 90).value
+                                const previewLng = gpsStale
+                                    ? null
+                                    : parseCoordinate(form.longitude, -180, 180).value
+
+                                return (
+                                    <div className="space-y-1 pt-1">
+                                        <a
+                                            href={getGoogleMapsPlaceUrl({
+                                                name: form.name.trim() || 'Coworking',
+                                                street: form.street.trim(),
+                                                number: form.number.trim() || null,
+                                                neighborhood: form.neighborhood.trim() || null,
+                                                city: form.city.trim() || 'São Paulo',
+                                                state: form.state || 'SP',
+                                                latitude: previewLat,
+                                                longitude: previewLng,
+                                            })}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline"
+                                        >
+                                            Conferir localização no Google Maps →
+                                        </a>
+                                        {gpsStale && (
+                                            <p className="text-xs text-amber-700">
+                                                Endereço alterado: a prévia usa o novo endereço e o GPS antigo será limpo ao salvar (ou informe novas coordenadas).
+                                            </p>
+                                        )}
+                                    </div>
+                                )
+                            })()}
                         </Section>
 
                         <Section
