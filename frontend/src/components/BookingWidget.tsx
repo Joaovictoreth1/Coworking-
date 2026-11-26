@@ -1,6 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useAuth } from '../auth/context'
 import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
+import { ApiError } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
 import { inputClass, primaryButton } from '../lib/ui'
@@ -9,42 +10,109 @@ interface BookingWidgetProps {
     space: Space
 }
 
+function formatLocalDate(d: Date): string {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
+function toLocalIsoWithOffset(date: string, time: string): string {
+    const local = new Date(`${date}T${time}:00`)
+    if (Number.isNaN(local.getTime())) return ''
+
+    const offsetMinutes = -local.getTimezoneOffset()
+    const sign = offsetMinutes >= 0 ? '+' : '-'
+    const abs = Math.abs(offsetMinutes)
+    const hh = String(Math.floor(abs / 60)).padStart(2, '0')
+    const mm = String(abs % 60).padStart(2, '0')
+    return `${date}T${time}:00${sign}${hh}:${mm}`
+}
+
 export function BookingWidget({ space }: BookingWidgetProps) {
     const { user } = useAuth()
 
-    // Data padrão: amanhã
+    const todayDate = useMemo(() => formatLocalDate(new Date()), [])
+
+    // Data padrão: amanhã (no fuso local do usuário)
     const defaultDate = useMemo(() => {
         const d = new Date()
         d.setDate(d.getDate() + 1)
-        return d.toISOString().split('T')[0]
+        return formatLocalDate(d)
     }, [])
 
     const [date, setDate] = useState<string>(defaultDate)
     const [startTime, setStartTime] = useState<string>('09:00')
     const [endTime, setEndTime] = useState<string>('13:00')
     const [notes, setNotes] = useState<string>('')
+    const [nowMs, setNowMs] = useState<number>(() => Date.now())
 
-    // Monta ISO string para API
+    useEffect(() => {
+        const timer = window.setInterval(() => setNowMs(Date.now()), 30_000)
+        return () => window.clearInterval(timer)
+    }, [])
+
+    // Monta ISO string com fuso local para a API validar corretamente horário e passado
     const startIso = useMemo(() => {
         if (!date || !startTime) return ''
-        return `${date}T${startTime}:00`
+        return toLocalIsoWithOffset(date, startTime)
     }, [date, startTime])
 
     const endIso = useMemo(() => {
         if (!date || !endTime) return ''
-        return `${date}T${endTime}:00`
+        return toLocalIsoWithOffset(date, endTime)
     }, [date, endTime])
 
-    const isValidRange = Boolean(startIso && endIso && startTime < endTime)
+    const hasCompleteInputs = Boolean(date && startTime && endTime && startIso && endIso)
+    const isInvalidOrder = Boolean(startTime && endTime && startTime >= endTime)
+    const isPastDateTime = useMemo(() => {
+        if (!startIso) return false
+        return new Date(startIso).getTime() < nowMs
+    }, [startIso, nowMs])
+
+    const canPreview = space.is_active && hasCompleteInputs && !isInvalidOrder && !isPastDateTime
 
     // Consulta prévia e validação em tempo real de conflitos
     const {
         data: preview,
         isLoading: isChecking,
         error: previewError,
-    } = useBookingPreviewQuery(space.id, startIso, endIso, isValidRange)
+        refetch: refetchPreview,
+    } = useBookingPreviewQuery(space.id, startIso, endIso, canPreview)
 
     const createBooking = useCreateBookingMutation(space.id)
+
+    const localValidationError = !space.is_active
+        ? 'Este espaço está temporariamente inativo para novas reservas.'
+        : isInvalidOrder
+          ? 'O horário de saída deve ser posterior ao horário de entrada.'
+          : isPastDateTime
+            ? 'O horário de início não pode ser no passado.'
+            : null
+
+    const isNetworkOrServerError =
+        previewError instanceof ApiError && (previewError.status === 0 || previewError.status >= 500)
+
+    const apiErrorMessage =
+        preview?.available === false
+            ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
+            : previewError
+              ? previewError instanceof ApiError
+                  ? previewError.message
+                  : 'Não foi possível verificar a disponibilidade do horário.'
+              : null
+
+    const errorMessage = localValidationError ?? apiErrorMessage
+    const isBlocked = Boolean(
+        !space.is_active ||
+            !hasCompleteInputs ||
+            isInvalidOrder ||
+            isPastDateTime ||
+            isChecking ||
+            createBooking.isPending ||
+            preview?.available === false ||
+            previewError,
+    )
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
@@ -54,7 +122,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             return
         }
 
-        if (!isValidRange || preview?.available === false) {
+        if (isBlocked) {
             return
         }
 
@@ -69,13 +137,6 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             // Tratado pelo onError do hook
         }
     }
-
-    const conflictMessage =
-        preview?.available === false
-            ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
-            : previewError
-              ? 'Horário indisponível ou fora do período de funcionamento.'
-              : null
 
     return (
         <aside
@@ -99,10 +160,17 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    Espaço Ativo
-                </div>
+                {space.is_active ? (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                        Espaço Ativo
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
+                        <span className="w-2 h-2 rounded-full bg-slate-400" />
+                        Indisponível
+                    </div>
+                )}
             </div>
 
             <form onSubmit={handleBook} className="mt-5 space-y-4">
@@ -115,9 +183,9 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         id="booking-date"
                         type="date"
                         value={date}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={todayDate}
                         onChange={(e) => setDate(e.target.value)}
-                        className={inputClass(false, 'py-2')}
+                        className={inputClass(isPastDateTime, 'py-2')}
                         required
                     />
                 </div>
@@ -133,7 +201,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                             type="time"
                             value={startTime}
                             onChange={(e) => setStartTime(e.target.value)}
-                            className={inputClass(false, 'py-2')}
+                            className={inputClass(isInvalidOrder || isPastDateTime, 'py-2')}
                             required
                         />
                     </div>
@@ -146,7 +214,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                             type="time"
                             value={endTime}
                             onChange={(e) => setEndTime(e.target.value)}
-                            className={inputClass(false, 'py-2')}
+                            className={inputClass(isInvalidOrder, 'py-2')}
                             required
                         />
                     </div>
@@ -160,6 +228,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     <textarea
                         id="booking-notes"
                         rows={2}
+                        maxLength={1000}
                         value={notes}
                         onChange={(e) => setNotes(e.target.value)}
                         placeholder="Ex: Reunião para 6 pessoas com projetor"
@@ -167,19 +236,48 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     />
                 </div>
 
-                {/* Feedback em Tempo Real de Conflito de Horário */}
-                {conflictMessage && (
-                    <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium space-y-1">
+                {/* Estado de Carregamento da Prévia */}
+                {canPreview && isChecking && (
+                    <div
+                        role="status"
+                        aria-live="polite"
+                        className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-medium"
+                    >
+                        <span className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin shrink-0" />
+                        <span>Verificando disponibilidade e valor...</span>
+                    </div>
+                )}
+
+                {/* Feedback em Tempo Real de Validação / Conflito / Erro */}
+                {!isChecking && errorMessage && (
+                    <div
+                        role="alert"
+                        className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium space-y-1.5"
+                    >
                         <div className="flex items-center gap-2 font-bold text-rose-800">
-                            <span className="text-base">⚠️</span>
-                            <span>Horário Ocupado</span>
+                            <span>
+                                {isNetworkOrServerError
+                                    ? 'Erro ao verificar disponibilidade'
+                                    : localValidationError
+                                      ? 'Verifique o período selecionado'
+                                      : 'Horário Indisponível'}
+                            </span>
                         </div>
-                        <p>{conflictMessage}</p>
+                        <p>{errorMessage}</p>
+                        {isNetworkOrServerError && (
+                            <button
+                                type="button"
+                                onClick={() => refetchPreview()}
+                                className="mt-1 inline-flex items-center text-xs font-semibold text-rose-800 underline hover:text-rose-900 cursor-pointer"
+                            >
+                                Tentar novamente
+                            </button>
+                        )}
                     </div>
                 )}
 
                 {/* Resumo do Valor Calculado */}
-                {isValidRange && preview?.available && (
+                {canPreview && !isChecking && !errorMessage && preview?.available && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>
@@ -190,7 +288,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200/80">
                             <span>Total estimado:</span>
                             <span className="text-base text-emerald-600">
-                                {formatBRL(preview.total_price)}
+                                {preview.total_price === 0 ? 'Gratuito' : formatBRL(preview.total_price)}
                             </span>
                         </div>
                     </div>
@@ -199,7 +297,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 {/* Botão de Ação */}
                 <button
                     type="submit"
-                    disabled={isChecking || createBooking.isPending || (isValidRange && preview?.available === false)}
+                    disabled={user ? isBlocked : !space.is_active}
                     className={`${primaryButton} w-full py-3.5 text-base font-semibold shadow-md disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                     {createBooking.isPending ? (
@@ -209,7 +307,9 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         </span>
                     ) : !user ? (
                         'Entrar para Reservar'
-                    ) : conflictMessage ? (
+                    ) : isChecking ? (
+                        'Verificando...'
+                    ) : errorMessage ? (
                         'Horário Indisponível'
                     ) : (
                         'Confirmar Reserva'

@@ -27,7 +27,8 @@ export function ToastContainer() {
             {toasts.map((toast) => (
                 <div
                     key={toast.id}
-                    role="status"
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
                     className={`pointer-events-auto flex items-center justify-between p-4 rounded-xl border shadow-lg text-sm font-medium transition-all duration-300 animate-slide-up ${getToastStyles(
                         toast.type,
                     )}`}
@@ -39,7 +40,7 @@ export function ToastContainer() {
                         className="opacity-75 hover:opacity-100 transition-opacity p-1 text-lg leading-none cursor-pointer"
                         aria-label="Fechar notificação"
                     >
-                        &times;
+                        <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
             ))}

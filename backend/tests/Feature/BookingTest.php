@@ -242,7 +242,130 @@ class BookingTest extends TestCase
         $response = $this->withHeader('Authorization', "Bearer {$token2}")
             ->postJson("/api/bookings/{$booking->id}/cancel");
 
-        $response->assertStatus(422);
+        $response->assertStatus(403)
+            ->assertJson(['message' => 'Você não tem permissão para cancelar esta reserva.']);
+    }
+
+    public function test_user_cannot_view_other_users_booking(): void
+    {
+        $user1 = User::factory()->create();
+        $user2 = User::factory()->create();
+        $token2 = $user2->createApiToken('test2');
+
+        $space = Space::factory()->create(['is_active' => true]);
+        $booking = Booking::factory()->create([
+            'user_id' => $user1->id,
+            'space_id' => $space->id,
+        ]);
+
+        $response = $this->withHeader('Authorization', "Bearer {$token2}")
+            ->getJson("/api/bookings/{$booking->id}");
+
+        $response->assertStatus(403);
+    }
+
+    public function test_admin_can_view_and_cancel_other_users_booking(): void
+    {
+        $owner = User::factory()->create(['role' => User::ROLE_USER]);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $adminToken = $admin->createApiToken('admin-test');
+
+        $space = Space::factory()->create(['is_active' => true]);
+        $booking = Booking::factory()->create([
+            'user_id' => $owner->id,
+            'space_id' => $space->id,
+            'status' => Booking::STATUS_CONFIRMED,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$adminToken}")
+            ->getJson("/api/bookings/{$booking->id}")
+            ->assertStatus(200);
+
+        $this->withHeader('Authorization', "Bearer {$adminToken}")
+            ->postJson("/api/bookings/{$booking->id}/cancel", ['reason' => 'Cancelado pelo admin'])
+            ->assertStatus(200)
+            ->assertJson(['booking' => ['status' => Booking::STATUS_CANCELLED]]);
+    }
+
+    public function test_cancelling_already_cancelled_booking_returns_422(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createApiToken('test');
+
+        $space = Space::factory()->create(['is_active' => true]);
+        $booking = Booking::factory()->create([
+            'user_id' => $user->id,
+            'space_id' => $space->id,
+            'status' => Booking::STATUS_CANCELLED,
+        ]);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/bookings/{$booking->id}/cancel")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['booking']);
+    }
+
+    public function test_booking_in_the_past_is_rejected_on_store_and_preview(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createApiToken('test');
+        $space = Space::factory()->create(['is_active' => true, 'opening_hours' => null]);
+
+        $pastStart = Carbon::now()->subHours(3);
+        $pastEnd = Carbon::now()->subHour();
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/spaces/{$space->id}/bookings", [
+                'start_time' => $pastStart->toIso8601String(),
+                'end_time' => $pastEnd->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_time']);
+
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", [
+            'start_time' => $pastStart->toIso8601String(),
+            'end_time' => $pastEnd->toIso8601String(),
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['start_time']);
+    }
+
+    public function test_booking_with_end_time_before_or_equal_start_time_is_rejected(): void
+    {
+        $user = User::factory()->create();
+        $token = $user->createApiToken('test');
+        $space = Space::factory()->create(['is_active' => true, 'opening_hours' => null]);
+
+        $start = Carbon::now()->addDays(2)->setHour(14)->setMinute(0)->setSecond(0);
+
+        $this->withHeader('Authorization', "Bearer {$token}")
+            ->postJson("/api/spaces/{$space->id}/bookings", [
+                'start_time' => $start->toIso8601String(),
+                'end_time' => $start->toIso8601String(),
+            ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_time']);
+
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", [
+            'start_time' => $start->toIso8601String(),
+            'end_time' => (clone $start)->subHour()->toIso8601String(),
+        ])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['end_time']);
+    }
+
+    public function test_preview_returns_422_for_inactive_space(): void
+    {
+        $space = Space::factory()->create(['is_active' => false, 'opening_hours' => null]);
+        $start = Carbon::now()->addDays(2)->setHour(10)->setMinute(0)->setSecond(0);
+        $end = (clone $start)->addHours(2);
+
+        $this->postJson("/api/spaces/{$space->id}/bookings/preview", [
+            'start_time' => $start->toIso8601String(),
+            'end_time' => $end->toIso8601String(),
+        ])
+            ->assertStatus(422)
+            ->assertJson(['available' => false]);
     }
 
     public function test_preview_endpoint_returns_pricing_and_availability(): void

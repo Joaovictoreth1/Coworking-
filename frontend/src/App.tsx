@@ -1,5 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './auth/context'
 import { ToastContainer } from './components/Toast'
 import { navigate, useRoute, useRouteId, type Route } from './lib/route'
@@ -19,6 +19,19 @@ const SpaceForm = lazy(() => import('./pages/admin/SpaceForm'))
 
 const ADMIN_ROUTES: Route[] = ['spaces', 'space-new', 'space-edit', 'admin-dashboard']
 
+const ROUTE_TITLES: Record<Route, string> = {
+    home: 'Coworking Brasil · Encontre e reserve espaços de trabalho',
+    login: 'Entrar · Coworking Brasil',
+    register: 'Criar conta · Coworking Brasil',
+    'space-detail': 'Detalhes do espaço · Coworking Brasil',
+    favorites: 'Meus favoritos · Coworking Brasil',
+    'my-bookings': 'Minhas reservas · Coworking Brasil',
+    'admin-dashboard': 'Painel administrativo · Coworking Brasil',
+    spaces: 'Gerenciar locais · Coworking Brasil',
+    'space-new': 'Novo espaço · Coworking Brasil',
+    'space-edit': 'Editar espaço · Coworking Brasil',
+}
+
 function FullScreenLoader({ label }: { label: string }) {
     return (
         <main
@@ -35,12 +48,28 @@ function FullScreenLoader({ label }: { label: string }) {
 
 function AppContent() {
     const { user, loading } = useAuth()
+    const queryClient = useQueryClient()
+    const prevUserIdRef = useRef<number | null | undefined>(undefined)
     const route = useRoute()
     const routeId = useRouteId()
 
     const isAuthRoute = route === 'login' || route === 'register'
     const isAdminRoute = ADMIN_ROUTES.includes(route)
     const isPrivateRoute = isAdminRoute || route === 'favorites' || route === 'my-bookings'
+
+    useEffect(() => {
+        document.title = ROUTE_TITLES[route] ?? ROUTE_TITLES.home
+    }, [route])
+
+    // Limpa o cache do React Query ao sair ou trocar de conta para evitar vazamento entre sessões
+    useEffect(() => {
+        if (loading) return
+        const currentUserId = user?.id ?? null
+        if (prevUserIdRef.current !== undefined && prevUserIdRef.current !== currentUserId) {
+            queryClient.clear()
+        }
+        prevUserIdRef.current = currentUserId
+    }, [user, loading, queryClient])
 
     useEffect(() => {
         if (loading) return

@@ -66,7 +66,12 @@ export default function Home() {
                 </div>
             </section>
 
-            <div className="relative mt-8">
+            <form
+                role="search"
+                aria-label="Buscar espaços de coworking"
+                onSubmit={(e) => e.preventDefault()}
+                className="relative mt-8"
+            >
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-500" />
                 <input
                     type="search"
@@ -76,13 +81,16 @@ export default function Home() {
                     aria-label="Buscar locais"
                     className={`h-12 pl-10 ${inputClass(false)}`}
                 />
-            </div>
+            </form>
 
             <div className="mt-3">
                 <SpaceFilters value={filters} onChange={setFilters} onClear={clearFilters} />
             </div>
 
-            <div className="mt-6">
+            <section aria-labelledby="spaces-results-heading" className="mt-6">
+                <h2 id="spaces-results-heading" className="sr-only">
+                    Resultados da busca
+                </h2>
                 {favorites.error && (
                     <div className="mb-4">
                         <Alert type="error" onClose={favorites.clearError}>
@@ -128,12 +136,13 @@ export default function Home() {
                 ) : (
                     <>
                         {meta && (
-                            <p className="mb-4 text-sm text-slate-600">
+                            <p aria-live="polite" className="mb-4 text-sm text-slate-600">
                                 {meta.total} {meta.total === 1 ? 'local' : 'locais'}
                                 {filtersOn ? ' encontrados' : ' disponíveis'}
                             </p>
                         )}
                         <ul
+                            aria-label="Lista de espaços"
                             className={`grid gap-5 transition-opacity sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 ${
                                 isFetching ? 'opacity-60' : ''
                             }`}
@@ -147,7 +156,7 @@ export default function Home() {
                         </ul>
                     </>
                 )}
-            </div>
+            </section>
 
             {meta && meta.last_page > 1 && !errorMessage && (
                 <nav
