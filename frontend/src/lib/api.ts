@@ -33,6 +33,15 @@ export class ApiError extends Error {
     }
 }
 
+export function getErrorMessage(err: unknown, fallback: string): string {
+    if (err instanceof ApiError) {
+        const firstFieldError = Object.values(err.errors)[0]?.[0]
+        if (firstFieldError) return firstFieldError
+        if (err.message) return err.message
+    }
+    return fallback
+}
+
 export async function request<T>(
     path: string,
     options: { method?: string; body?: unknown; form?: FormData; token?: string | null } = {},

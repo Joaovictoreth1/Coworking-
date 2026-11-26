@@ -1,7 +1,11 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../auth/context'
-import { useBookingPreviewQuery, useCreateBookingMutation } from '../hooks/useBookings'
-import { ApiError } from '../lib/api'
+import {
+    useBookingAvailabilityQuery,
+    useBookingPreviewQuery,
+    useCreateBookingMutation,
+} from '../hooks/useBookings'
+import { ApiError, getErrorMessage } from '../lib/api'
 import { navigate } from '../lib/route'
 import { formatBRL, type Space } from '../lib/spaces'
 import { inputClass, primaryButton } from '../lib/ui'
@@ -29,6 +33,15 @@ function toLocalIsoWithOffset(date: string, time: string): string {
     return `${date}T${time}:00${sign}${hh}:${mm}`
 }
 
+function formatTimeRange(startIso: string, endIso: string, timeZone?: string): string {
+    const start = new Date(startIso)
+    const end = new Date(endIso)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return ''
+    const fmt = (d: Date) =>
+        d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone })
+    return `${fmt(start)} – ${fmt(end)}`
+}
+
 export function BookingWidget({ space }: BookingWidgetProps) {
     const { user } = useAuth()
 
@@ -45,6 +58,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
     const [startTime, setStartTime] = useState<string>('09:00')
     const [endTime, setEndTime] = useState<string>('13:00')
     const [notes, setNotes] = useState<string>('')
+    const [submitError, setSubmitError] = useState<string | null>(null)
     const [nowMs, setNowMs] = useState<number>(() => Date.now())
 
     useEffect(() => {
@@ -65,17 +79,24 @@ export function BookingWidget({ space }: BookingWidgetProps) {
 
     const hasCompleteInputs = Boolean(date && startTime && endTime && startIso && endIso)
     const isInvalidOrder = Boolean(startTime && endTime && startTime >= endTime)
+    const isNotesTooLong = notes.length > 1000
     const isPastDateTime = useMemo(() => {
         if (!startIso) return false
         return new Date(startIso).getTime() < nowMs
     }, [startIso, nowMs])
 
-    const canPreview = space.is_active && hasCompleteInputs && !isInvalidOrder && !isPastDateTime
+    const canPreview =
+        space.is_active && hasCompleteInputs && !isInvalidOrder && !isPastDateTime && !isNotesTooLong
 
-    // Consulta prévia e validação em tempo real de conflitos
+    const { data: availability, isFetching: isLoadingAvailability } = useBookingAvailabilityQuery(
+        space.id,
+        date,
+        space.is_active && Boolean(date),
+    )
+
     const {
         data: preview,
-        isLoading: isChecking,
+        isFetching: isChecking,
         error: previewError,
         refetch: refetchPreview,
     } = useBookingPreviewQuery(space.id, startIso, endIso, canPreview)
@@ -88,18 +109,25 @@ export function BookingWidget({ space }: BookingWidgetProps) {
           ? 'O horário de saída deve ser posterior ao horário de entrada.'
           : isPastDateTime
             ? 'O horário de início não pode ser no passado.'
-            : null
+            : isNotesTooLong
+              ? 'As observações não podem exceder 1000 caracteres.'
+              : null
 
     const isNetworkOrServerError =
         previewError instanceof ApiError && (previewError.status === 0 || previewError.status >= 500)
+
+    const isConflict =
+        preview?.conflict === true ||
+        (previewError instanceof ApiError && previewError.status === 409)
 
     const apiErrorMessage =
         preview?.available === false
             ? preview.message || 'Este espaço já possui uma reserva no horário selecionado.'
             : previewError
-              ? previewError instanceof ApiError
-                  ? previewError.message
-                  : 'Não foi possível verificar a disponibilidade do horário.'
+              ? getErrorMessage(
+                    previewError,
+                    'Não foi possível verificar a disponibilidade do horário.',
+                )
               : null
 
     const errorMessage = localValidationError ?? apiErrorMessage
@@ -108,6 +136,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             !hasCompleteInputs ||
             isInvalidOrder ||
             isPastDateTime ||
+            isNotesTooLong ||
             isChecking ||
             createBooking.isPending ||
             preview?.available === false ||
@@ -116,6 +145,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
 
     async function handleBook(e: React.FormEvent) {
         e.preventDefault()
+        setSubmitError(null)
 
         if (!user) {
             navigate('login')
@@ -133,8 +163,8 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                 notes: notes.trim() || undefined,
             })
             navigate('my-bookings')
-        } catch {
-            // Tratado pelo onError do hook
+        } catch (err) {
+            setSubmitError(getErrorMessage(err, 'Não foi possível concluir a reserva.'))
         }
     }
 
@@ -174,9 +204,11 @@ export function BookingWidget({ space }: BookingWidgetProps) {
             </div>
 
             <form onSubmit={handleBook} className="mt-5 space-y-4">
-                {/* Data da Reserva */}
                 <div>
-                    <label htmlFor="booking-date" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    <label
+                        htmlFor="booking-date"
+                        className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                    >
                         Data
                     </label>
                     <input
@@ -184,45 +216,112 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         type="date"
                         value={date}
                         min={todayDate}
-                        onChange={(e) => setDate(e.target.value)}
+                        onChange={(e) => {
+                            setDate(e.target.value)
+                            setSubmitError(null)
+                        }}
                         className={inputClass(isPastDateTime, 'py-2')}
                         required
                     />
                 </div>
 
-                {/* Intervalo de Horário */}
+                {space.is_active && (availability || isLoadingAvailability) && (
+                    <div
+                        aria-label="Disponibilidade do dia"
+                        className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-3 py-2.5 text-xs space-y-1.5"
+                    >
+                        {isLoadingAvailability && !availability ? (
+                            <p className="text-slate-500">Carregando agenda do dia…</p>
+                        ) : availability && !availability.open ? (
+                            <p className="font-medium text-amber-800">
+                                Este espaço não funciona na data selecionada.
+                            </p>
+                        ) : availability ? (
+                            <>
+                                {availability.window && (
+                                    <p className="text-slate-600">
+                                        Funcionamento:{' '}
+                                        <span className="font-semibold text-slate-800">
+                                            {availability.window.from} às {availability.window.to}
+                                        </span>
+                                    </p>
+                                )}
+                                {availability.busy.length > 0 ? (
+                                    <div className="space-y-1">
+                                        <p className="text-slate-500 font-medium">
+                                            Horários já ocupados:
+                                        </p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                            {availability.busy.map((slot) => (
+                                                <span
+                                                    key={`${slot.start_time}-${slot.end_time}`}
+                                                    className="inline-flex items-center rounded-md bg-rose-50 px-2 py-0.5 font-medium text-rose-700 ring-1 ring-inset ring-rose-200"
+                                                >
+                                                    {formatTimeRange(
+                                                        slot.start_time,
+                                                        slot.end_time,
+                                                        availability.timezone,
+                                                    )}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-emerald-700 font-medium">
+                                        Nenhum horário ocupado nesta data.
+                                    </p>
+                                )}
+                            </>
+                        ) : null}
+                    </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label htmlFor="booking-start-time" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                        <label
+                            htmlFor="booking-start-time"
+                            className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                        >
                             Entrada
                         </label>
                         <input
                             id="booking-start-time"
                             type="time"
                             value={startTime}
-                            onChange={(e) => setStartTime(e.target.value)}
+                            onChange={(e) => {
+                                setStartTime(e.target.value)
+                                setSubmitError(null)
+                            }}
                             className={inputClass(isInvalidOrder || isPastDateTime, 'py-2')}
                             required
                         />
                     </div>
                     <div>
-                        <label htmlFor="booking-end-time" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                        <label
+                            htmlFor="booking-end-time"
+                            className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                        >
                             Saída
                         </label>
                         <input
                             id="booking-end-time"
                             type="time"
                             value={endTime}
-                            onChange={(e) => setEndTime(e.target.value)}
+                            onChange={(e) => {
+                                setEndTime(e.target.value)
+                                setSubmitError(null)
+                            }}
                             className={inputClass(isInvalidOrder, 'py-2')}
                             required
                         />
                     </div>
                 </div>
 
-                {/* Observações Opcionais */}
                 <div>
-                    <label htmlFor="booking-notes" className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5">
+                    <label
+                        htmlFor="booking-notes"
+                        className="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1.5"
+                    >
                         Observações (opcional)
                     </label>
                     <textarea
@@ -230,9 +329,12 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                         rows={2}
                         maxLength={1000}
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
+                        onChange={(e) => {
+                            setNotes(e.target.value)
+                            setSubmitError(null)
+                        }}
                         placeholder="Ex: Reunião para 6 pessoas com projetor"
-                        className={inputClass(false, 'text-sm resize-none py-2')}
+                        className={inputClass(notes.length > 1000, 'text-sm resize-none py-2')}
                     />
                 </div>
 
@@ -241,6 +343,7 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     <div
                         role="status"
                         aria-live="polite"
+                        aria-busy="true"
                         className="flex items-center gap-2.5 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 text-slate-600 text-xs font-medium"
                     >
                         <span className="w-3.5 h-3.5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin shrink-0" />
@@ -260,7 +363,9 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                                     ? 'Erro ao verificar disponibilidade'
                                     : localValidationError
                                       ? 'Verifique o período selecionado'
-                                      : 'Horário Indisponível'}
+                                      : isConflict
+                                        ? 'Horário já reservado'
+                                        : 'Horário Indisponível'}
                             </span>
                         </div>
                         <p>{errorMessage}</p>
@@ -276,13 +381,24 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     </div>
                 )}
 
+                {/* Erro ao enviar a reserva */}
+                {submitError && (
+                    <div
+                        role="alert"
+                        className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium"
+                    >
+                        {submitError}
+                    </div>
+                )}
+
                 {/* Resumo do Valor Calculado */}
                 {canPreview && !isChecking && !errorMessage && preview?.available && (
                     <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 space-y-2 text-xs">
                         <div className="flex justify-between text-slate-600">
                             <span>Duração estimada:</span>
                             <span className="font-semibold text-slate-900">
-                                {preview.duration_hours} {preview.duration_hours === 1 ? 'hora' : 'horas'}
+                                {preview.duration_hours}{' '}
+                                {preview.duration_hours === 1 ? 'hora' : 'horas'}
                             </span>
                         </div>
                         <div className="flex justify-between text-sm font-bold text-slate-900 pt-2 border-t border-slate-200/80">
@@ -294,7 +410,6 @@ export function BookingWidget({ space }: BookingWidgetProps) {
                     </div>
                 )}
 
-                {/* Botão de Ação */}
                 <button
                     type="submit"
                     disabled={user ? isBlocked : !space.is_active}

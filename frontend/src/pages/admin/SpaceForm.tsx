@@ -7,7 +7,8 @@ import WeeklySchedule from '../../components/admin/WeeklySchedule'
 import ComponentBody from '../../components/ComponentBody'
 import Field from '../../components/Field'
 import { ArrowLeftIcon } from '../../components/icons'
-import { ApiError } from '../../lib/api'
+import { useCreateSpaceMutation, useUpdateSpaceMutation } from '../../hooks/useSpaces'
+import { ApiError, getErrorMessage } from '../../lib/api'
 import { clearFlash, peekFlash, setFlash } from '../../lib/flash'
 import { href, navigate } from '../../lib/route'
 import {
@@ -191,8 +192,6 @@ const formatZip = (value: string) => {
     return digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits
 }
 
-const firstError = (err: ApiError) => Object.values(err.errors)[0]?.[0] ?? err.message
-
 function PriceOption({
     title,
     description,
@@ -254,6 +253,9 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const [loadError, setLoadError] = useState('')
     const [reloadKey, setReloadKey] = useState(0)
     const [submitting, setSubmitting] = useState(false)
+
+    const createSpace = useCreateSpaceMutation()
+    const updateSpace = useUpdateSpaceMutation(id ?? 0)
 
     const photosRef = useRef(photos)
     useEffect(() => {
@@ -390,7 +392,10 @@ export default function SpaceForm({ id }: { id: number | null }) {
         let saved: Space | null = null
         try {
             const payload = toPayload(form)
-            saved = id === null ? await spacesApi.create(payload) : await spacesApi.update(id, payload)
+            saved =
+                id === null
+                    ? await createSpace.mutateAsync(payload)
+                    : await updateSpace.mutateAsync(payload)
             await syncPhotos(saved.id, saved)
 
             queryClient.invalidateQueries({ queryKey: ['spaces'] })
@@ -403,8 +408,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
             })
             navigate('spaces')
         } catch (err) {
-            const reason =
-                err instanceof ApiError ? firstError(err) : 'Erro inesperado. Tente novamente.'
+            const reason = getErrorMessage(err, 'Erro inesperado. Tente novamente.')
 
             if (saved === null) {
                 // Falhou ao salvar o local em si

@@ -1,7 +1,7 @@
 # 🏢 Coworking Platform — Sistema Completo de Gestão e Reservas
 
 [![CI — Continuous Integration](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml/badge.svg)](https://github.com/Joaovictoreth1/Coworking-/actions/workflows/ci.yml)
-[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-36%20passed%20%2F%20148%20assertions-emerald?style=flat-square&logo=php)](backend/)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-59%20passed%20%2F%20216%20assertions-emerald?style=flat-square&logo=php)](backend/)
 [![Frontend Build](https://img.shields.io/badge/Frontend-Vite%20%2B%20React%2019%20Build%20OK-blue?style=flat-square&logo=react)](frontend/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict%20Type%20Safe-blue?style=flat-square&logo=typescript)](frontend/)
 [![Laravel](https://img.shields.io/badge/Laravel-13.x%20(PHP%208.4)-red?style=flat-square&logo=laravel)](backend/)
@@ -46,8 +46,8 @@ A solução integra **Backend robusto em Laravel 13**, **Frontend web em React 1
 
 1. **Blindagem contra Double-Booking (Conflito de Horário):**
    - O `BookingService` executa validação matemática de sobreposição: uma reserva sobrepõe outra se `[start_time < new_end]` e `[end_time > new_start]`.
-   - Utiliza **Lock Pessimista (`lockForUpdate`)** e transações no banco de dados para eliminar qualquer risco de *Race Condition* sob concorrência simultânea.
-   - Tentativas de sobreposição retornam status **`422 Unprocessable Entity`** com mensagem clara de erro.
+   - Utiliza **Lock Pessimista (`lockForUpdate`) na linha do espaço (`spaces`)** dentro de transações com retry automático (`DB::transaction(..., 3)`), serializando reservas simultâneas no mesmo espaço mesmo quando ainda não há reservas prévias.
+   - Tentativas de sobreposição, cancelamento duplicado ou reativação administrativa conflitante retornam **`409 Conflict`**; erros de payload/horário de funcionamento retornam **`422 Unprocessable Entity`**; recursos inexistentes retornam **`404 Not Found`**; acesso não autorizado retorna **`403 Forbidden`**.
 2. **Cálculo Automático de Tarifação:**
    - Calcula a duração em horas (`ceil(diffInMinutes / 60)`).
    - Aplica tarifas por hora (`hourly_price`), pacotes de diárias (`daily_price`) ou modalidade gratuita (`is_free`).
@@ -106,12 +106,24 @@ php artisan storage:link
 php artisan serve --port=8000
 ```
 
+Principais variáveis de ambiente do backend (`backend/.env`):
+- `APP_URL`: URL base do backend (ex.: `http://localhost:8000`)
+- `DB_CONNECTION`, `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USERNAME`, `DB_PASSWORD`: configuração do banco (`mysql` ou `sqlite`)
+- `CORS_ALLOWED_ORIGINS`: origens permitidas para o frontend (ex.: `http://localhost:5173`)
+- `TRUSTED_PROXIES`: proxies confiáveis (`*` atrás de reverse proxy como Caddy)
+
+> Para recriar o banco local do zero com dados de desenvolvimento: `php artisan migrate:fresh --seed` (o `DatabaseSeeder` recusa execução em `APP_ENV=production`; em produção crie o admin via `php artisan coworking:create-admin`).
+
 #### 2. Frontend (React + Vite)
 ```bash
 cd frontend
 npm install
+# Opcional: definir VITE_API_URL=http://localhost:8000/api em frontend/.env.local
 npm run dev
 ```
+
+Principais variáveis de ambiente do frontend (`frontend/.env.local`):
+- `VITE_API_URL`: URL da API Laravel (padrão: `http://localhost:8000/api`)
 
 ---
 
@@ -128,27 +140,27 @@ docker exec coworking-backend php artisan test
 cd backend && php artisan test
 ```
 
-**Resultado:** **30 testes passando (124 asserções) com 100% de sucesso.**
-- ✅ Fluxo de cadastro e autenticação Sanctum/Bearer Token
+**Resultado:** **59 testes passando (216 asserções, 1 skipped dependente de MySQL para concorrência real) com 100% de sucesso.**
+- ✅ Fluxo de cadastro e autenticação Bearer Token
 - ✅ Validação contra e-mails duplicados e senhas divergentes
-- ✅ Criação de reserva com sucesso e cálculo de preço
-- ✅ **Teste obrigatório comprovando erro 422 ao tentar reservar horário conflitante (Double-Booking)**
-- ✅ Validação de horário de funcionamento do espaço
-- ✅ Listagem e cancelamento de reservas pelo cliente
-- ✅ Bloqueio de usuário comum tentando criar espaços de administrador (403)
-- ✅ Dashboard administrativo e métricas do sistema
+- ✅ Criação de reserva (`201`), reservas adjacentes sem conflito e cálculo de preço
+- ✅ **Bloqueio de sobreposição (`409 Conflict`) com `lockForUpdate` na linha do espaço, inclusive em reativação administrativa**
+- ✅ Validação de horário de funcionamento (incluindo reservas multi-dia), espaço inativo e payloads inválidos (`422`)
+- ✅ Listagem, cancelamento (`200`), bloqueio de cancelamento duplicado/concluído (`409`) e isolamento entre usuários (`403`)
+- ✅ Proteção `admin` em `/api/admin/spaces`, `/api/admin/bookings`, `/api/admin/metrics` e `/api/admin/dashboard` (`403` para usuário comum)
 
-### Validação do Frontend (TypeScript + ESLint + Build)
+### Validação do Frontend (Vitest + TypeScript + ESLint + Build)
 ```bash
 # Via container:
 docker exec coworking-frontend npm run lint
+docker exec coworking-frontend npm test
 docker exec coworking-frontend npm run build
 
 # Ou localmente:
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm test && npm run build
 ```
 
-**Resultado:** **0 erros e 0 warnings no ESLint e compilação de produção sem falhas via Vite.**
+**Resultado:** **11 testes Vitest passando, 0 erros no ESLint e compilação de produção sem falhas via Vite.**
 
 ---
 
@@ -167,6 +179,7 @@ cd frontend && npm run lint && npm run build
 |---|---|---|---|
 | `GET` | `/api/spaces` | Catálogo paginado com busca e filtros | Público / Opcional |
 | `GET` | `/api/spaces/{id}` | Detalhes completos do local e fotos | Público |
+| `GET` | `/api/spaces/{id}/bookings/availability?date=AAAA-MM-DD` | Janela de funcionamento e horários ocupados do dia (sem PII) | Público |
 | `POST` | `/api/spaces/{id}/bookings/preview` | Simulação em tempo real de preço e disponibilidade | Público |
 | `GET` | `/api/spaces/{id}/reviews` | Avaliações do local com paginação | Público |
 

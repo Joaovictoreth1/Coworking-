@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../../auth/context'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { Alert } from '../../components/admin/FormControls'
@@ -14,7 +13,8 @@ import {
     SearchIcon,
     TrashIcon,
 } from '../../components/icons'
-import { ApiError } from '../../lib/api'
+import { useAdminSpacesQuery, useDeleteSpaceMutation } from '../../hooks/useSpaces'
+import { getErrorMessage } from '../../lib/api'
 import { clearFlash, peekFlash, type Flash } from '../../lib/flash'
 import { href } from '../../lib/route'
 import {
@@ -22,12 +22,11 @@ import {
     formatBRL,
     formatRating,
     priceList,
-    spacesApi,
     summarizeSchedule,
-    type Paginated,
     type Space,
 } from '../../lib/spaces'
 import { inputClass, primaryButton, secondaryButton } from '../../lib/ui'
+import { useUiStore } from '../../store/useUiStore'
 
 const STATUS_OPTIONS = [
     { value: '', label: 'Todos os status' },
@@ -37,96 +36,73 @@ const STATUS_OPTIONS = [
 
 export default function SpacesList() {
     const { user } = useAuth()
-    const queryClient = useQueryClient()
-    const [items, setItems] = useState<Space[]>([])
-    const [meta, setMeta] = useState<Paginated<Space>['meta'] | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
     const [notice, setNotice] = useState<Flash | null>(peekFlash)
 
-    const [search, setSearch] = useState('')
-    const [query, setQuery] = useState('')
-    const [status, setStatus] = useState('')
-    const [page, setPage] = useState(1)
-    const [reloadKey, setReloadKey] = useState(0)
+    const search = useUiStore((s) => s.adminSpaceSearch)
+    const setSearch = useUiStore((s) => s.setAdminSpaceSearch)
+    const status = useUiStore((s) => s.adminSpaceStatus)
+    const setStatus = useUiStore((s) => s.setAdminSpaceStatus)
+    const page = useUiStore((s) => s.adminSpacePage)
+    const setPage = useUiStore((s) => s.setAdminSpacePage)
 
+    const [query, setQuery] = useState(() => search.trim())
     const [toDelete, setToDelete] = useState<Space | null>(null)
-    const [deleting, setDeleting] = useState(false)
     const [deleteError, setDeleteError] = useState('')
+
+    const {
+        data,
+        isLoading,
+        isFetching,
+        error: loadError,
+        refetch,
+    } = useAdminSpacesQuery({ page, q: query, status })
+    const deleteSpace = useDeleteSpaceMutation()
+
+    const items = data?.data ?? []
+    const meta = data?.meta ?? null
+    const loading = isLoading || isFetching
+    const error = loadError ? getErrorMessage(loadError, 'Não foi possível carregar os locais.') : ''
 
     useEffect(() => {
         clearFlash()
     }, [])
 
-    // Espera o usuário parar de digitar antes de buscar
+    useEffect(() => {
+        if (meta && meta.last_page >= 1 && page > meta.last_page) {
+            setPage(meta.last_page)
+        }
+    }, [meta, page, setPage])
+
     useEffect(() => {
         const timer = setTimeout(() => {
             const next = search.trim()
             if (next !== query) {
                 setQuery(next)
                 setPage(1)
-                setLoading(true)
             }
         }, 350)
         return () => clearTimeout(timer)
-    }, [search, query])
-
-    useEffect(() => {
-        let cancelled = false
-        spacesApi
-            .list({ page, q: query, status })
-            .then((res) => {
-                if (cancelled) return
-                setItems(res.data)
-                setMeta(res.meta)
-                setError('')
-            })
-            .catch((err) => {
-                if (cancelled) return
-                setError(err instanceof ApiError ? err.message : 'Não foi possível carregar os locais.')
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false)
-            })
-        return () => {
-            cancelled = true
-        }
-    }, [page, query, status, reloadKey])
+    }, [search, query, setPage])
 
     function changeStatus(value: string) {
         setStatus(value)
-        setPage(1)
-        setLoading(true)
     }
 
     function goToPage(next: number) {
         setPage(next)
-        setLoading(true)
     }
 
     async function confirmDelete() {
         if (!toDelete) return
-        setDeleting(true)
         setDeleteError('')
         try {
-            await spacesApi.remove(toDelete.id)
+            await deleteSpace.mutateAsync(toDelete.id)
             setToDelete(null)
             setNotice({ type: 'success', text: 'Local excluído.' })
-            queryClient.invalidateQueries({ queryKey: ['spaces'] })
-            queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
-            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             // Se era o único da última página, volta uma página
             if (items.length === 1 && page > 1) setPage(page - 1)
-            setLoading(true)
-            setReloadKey((k) => k + 1)
         } catch (err) {
-            const msg =
-                err instanceof ApiError
-                    ? Object.values(err.errors)[0]?.[0] ?? err.message
-                    : 'Não foi possível excluir o local.'
-            setDeleteError(msg)
-        } finally {
-            setDeleting(false)
+            setDeleteError(getErrorMessage(err, 'Não foi possível excluir o local.'))
         }
     }
 
@@ -191,14 +167,7 @@ export default function SpacesList() {
                 {error ? (
                     <div className="space-y-3">
                         <Alert type="error">{error}</Alert>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setLoading(true)
-                                setReloadKey((k) => k + 1)
-                            }}
-                            className={secondaryButton}
-                        >
+                        <button type="button" onClick={() => void refetch()} className={secondaryButton}>
                             Tentar novamente
                         </button>
                     </div>
@@ -347,7 +316,7 @@ export default function SpacesList() {
                     title="Excluir local?"
                     message={`"${toDelete.name}" e todas as suas fotos serão removidos. Essa ação não pode ser desfeita.`}
                     error={deleteError || undefined}
-                    busy={deleting}
+                    busy={deleteSpace.isPending}
                     onConfirm={confirmDelete}
                     onCancel={() => {
                         setDeleteError('')

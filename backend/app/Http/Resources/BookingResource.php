@@ -31,6 +31,8 @@ class BookingResource extends JsonResource
             'status' => $this->status,
             'voucher_code' => $this->voucher_code,
             'notes' => $this->notes,
+            'cancelled_at' => $this->cancelled_at?->toIso8601String(),
+            'cancellation_reason' => $this->cancellation_reason,
             'can_cancel' => $currentUser ? $this->canBeCancelledBy($currentUser) : false,
             'created_at' => $this->created_at?->toIso8601String(),
             'space' => $this->whenLoaded('space', function () {

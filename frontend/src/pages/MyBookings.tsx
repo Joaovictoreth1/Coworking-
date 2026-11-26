@@ -3,15 +3,14 @@ import ComponentBody from '../components/ComponentBody'
 import { SearchIcon } from '../components/icons'
 import { BookingCardSkeleton } from '../components/Skeleton'
 import { useCancelBookingMutation, useUserBookingsQuery } from '../hooks/useBookings'
-import { ApiError } from '../lib/api'
+import { getErrorMessage } from '../lib/api'
 import { href } from '../lib/route'
 import { formatBRL, type Booking } from '../lib/spaces'
 import { inputClass, primaryButton, secondaryButton } from '../lib/ui'
 import { useToastStore } from '../store/useToastStore'
+import { useUiStore, type BookingStatusTab } from '../store/useUiStore'
 
-type StatusFilter = '' | 'confirmed' | 'pending' | 'completed' | 'cancelled'
-
-const TABS: { label: string; value: StatusFilter }[] = [
+const TABS: { label: string; value: BookingStatusTab }[] = [
     { label: 'Todas', value: '' },
     { label: 'Confirmadas', value: 'confirmed' },
     { label: 'Pendentes', value: 'pending' },
@@ -78,7 +77,8 @@ function formatTime(iso: string) {
 }
 
 export default function MyBookings() {
-    const [selectedTab, setSelectedTab] = useState<StatusFilter>('')
+    const selectedTab = useUiStore((s) => s.bookingsTab)
+    const setSelectedTab = useUiStore((s) => s.setBookingsTab)
     const [searchQuery, setSearchQuery] = useState('')
     const [cancellingId, setCancellingId] = useState<number | null>(null)
     const [cancelReason, setCancelReason] = useState<string>(CANCEL_REASONS[0])
@@ -213,14 +213,11 @@ export default function MyBookings() {
                             className="text-center py-12 bg-rose-50 rounded-3xl border border-rose-200 p-6 space-y-3"
                         >
                             <p className="text-rose-700 font-semibold">
-                                Não foi possível carregar suas reservas.
-                            </p>
-                            <p className="text-xs text-rose-600">
-                                {error instanceof ApiError ? error.message : 'Tente novamente mais tarde.'}
+                                {getErrorMessage(error, 'Não foi possível carregar suas reservas.')}
                             </p>
                             <button
                                 type="button"
-                                onClick={() => refetch()}
+                                onClick={() => void refetch()}
                                 disabled={isFetching}
                                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer disabled:opacity-50"
                             >

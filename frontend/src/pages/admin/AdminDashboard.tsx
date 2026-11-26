@@ -6,10 +6,11 @@ import {
     useAdminMetricsQuery,
     useAdminUpdateBookingStatusMutation,
 } from '../../hooks/useBookings'
-import { ApiError } from '../../lib/api'
+import { getErrorMessage } from '../../lib/api'
 import { href } from '../../lib/route'
 import { formatBRL, type Booking } from '../../lib/spaces'
 import { primaryButton, secondaryButton } from '../../lib/ui'
+import { useUiStore } from '../../store/useUiStore'
 
 function getBadge(status: Booking['status']) {
     switch (status) {
@@ -41,8 +42,10 @@ function getBadge(status: Booking['status']) {
 }
 
 export default function AdminDashboard() {
-    const [statusFilter, setStatusFilter] = useState<string>('')
-    const [search, setSearch] = useState<string>('')
+    const statusFilter = useUiStore((s) => s.adminBookingStatus)
+    const setStatusFilter = useUiStore((s) => s.setAdminBookingStatus)
+    const search = useUiStore((s) => s.adminBookingSearch)
+    const setSearch = useUiStore((s) => s.setAdminBookingSearch)
     const [page, setPage] = useState<number>(1)
     const [updatingBookingId, setUpdatingBookingId] = useState<number | null>(null)
 
@@ -80,7 +83,7 @@ export default function AdminDashboard() {
         try {
             await updateStatus.mutateAsync({ bookingId, status })
         } catch {
-            // Tratado pelo onError do hook
+            // Tratado no onError do hook
         } finally {
             setUpdatingBookingId(null)
         }
@@ -133,12 +136,11 @@ export default function AdminDashboard() {
                         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700"
                     >
                         <span>
-                            Não foi possível carregar as métricas:{' '}
-                            {metricsError instanceof ApiError ? metricsError.message : 'erro inesperado.'}
+                            {getErrorMessage(metricsError, 'Não foi possível carregar as métricas.')}
                         </span>
                         <button
                             type="button"
-                            onClick={() => refetchMetrics()}
+                            onClick={() => void refetchMetrics()}
                             className="shrink-0 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                         >
                             Tentar novamente
@@ -385,19 +387,17 @@ export default function AdminDashboard() {
                                     </tr>
                                 ) : bookingsError ? (
                                     <tr>
-                                        <td colSpan={7} className="py-10 text-center">
+                                        <td colSpan={7} className="py-10 text-center space-y-3">
                                             <p className="text-rose-700 font-semibold">
-                                                Não foi possível carregar as reservas.
-                                            </p>
-                                            <p className="text-xs text-rose-500 mt-1">
-                                                {bookingsError instanceof ApiError
-                                                    ? bookingsError.message
-                                                    : 'Tente novamente mais tarde.'}
+                                                {getErrorMessage(
+                                                    bookingsError,
+                                                    'Não foi possível carregar as reservas.',
+                                                )}
                                             </p>
                                             <button
                                                 type="button"
-                                                onClick={() => refetchBookings()}
-                                                className="mt-3 px-4 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
+                                                onClick={() => void refetchBookings()}
+                                                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                                             >
                                                 Tentar novamente
                                             </button>

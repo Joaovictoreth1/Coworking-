@@ -4,21 +4,22 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Exceptions\BookingConflictException;
 use App\Models\Booking;
 use App\Models\Space;
 use App\Models\User;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class BookingService
 {
     /**
      * Valida se não há sobreposição de horário (Double-Booking).
      *
-     * @throws ValidationException
+     * @throws BookingConflictException
      */
     public function validateNoOverlap(
         Space $space,
@@ -35,10 +36,7 @@ class BookingService
             ->exists();
 
         if ($overlapExists) {
-            throw ValidationException::withMessages([
-                'booking_conflict' => ['Este espaço já possui uma reserva no horário selecionado. Escolha outro intervalo.'],
-                'start_time' => ['Horário conflitante com outra reserva ativa.'],
-            ]);
+            throw BookingConflictException::overlap();
         }
     }
 
@@ -72,36 +70,40 @@ class BookingService
             ]);
         }
 
-        $openingHours = $space->opening_hours;
-        if (! is_array($openingHours) || empty($openingHours)) {
+        $schedule = $space->opening_hours;
+        if (! is_array($schedule) || empty($schedule)) {
             return;
         }
 
-        // Dia da semana: 0 = domingo, 1 = segunda, ..., 6 = sábado
-        $startDayOfWeek = $startTime->dayOfWeek;
-        $dayConfig = null;
-
-        foreach ($openingHours as $item) {
-            if (isset($item['day']) && (int) $item['day'] === $startDayOfWeek) {
-                $dayConfig = $item;
-                break;
+        $byDay = [];
+        foreach ($schedule as $item) {
+            if (isset($item['day'])) {
+                $byDay[(int) $item['day']] = $item;
             }
         }
 
-        if ($dayConfig !== null) {
+        $startDay = $startTime->copy()->startOfDay();
+        $endDay = $endTime->copy()->startOfDay();
+        $sameDay = $startDay->equalTo($endDay);
+
+        for ($cursor = $startDay->copy(); $cursor->lte($endDay); $cursor->addDay()) {
+            $dayConfig = $byDay[$cursor->dayOfWeek] ?? null;
+
+            if ($dayConfig === null) {
+                continue;
+            }
+
             if (empty($dayConfig['enabled'])) {
                 throw ValidationException::withMessages([
                     'start_time' => ['O espaço não funciona no dia selecionado.'],
                 ]);
             }
 
-            if (! $startTime->isSameDay($endTime)) {
-                throw ValidationException::withMessages([
-                    'end_time' => ['A reserva deve começar e terminar no mesmo dia dentro do horário de funcionamento.'],
-                ]);
+            if (empty($dayConfig['from']) || empty($dayConfig['to'])) {
+                continue;
             }
 
-            if (! empty($dayConfig['from']) && ! empty($dayConfig['to'])) {
+            if ($sameDay) {
                 $timeStartStr = $startTime->format('H:i');
                 $timeEndStr = $endTime->format('H:i');
 
@@ -109,6 +111,22 @@ class BookingService
                     throw ValidationException::withMessages([
                         'start_time' => [
                             "O horário de funcionamento neste dia é das {$dayConfig['from']} às {$dayConfig['to']}.",
+                        ],
+                    ]);
+                }
+            } elseif ($cursor->equalTo($startDay)) {
+                if ($startTime->format('H:i') < $dayConfig['from'] || $startTime->format('H:i') >= $dayConfig['to']) {
+                    throw ValidationException::withMessages([
+                        'start_time' => [
+                            "O horário de funcionamento neste dia é das {$dayConfig['from']} às {$dayConfig['to']}.",
+                        ],
+                    ]);
+                }
+            } elseif ($cursor->equalTo($endDay)) {
+                if ($endTime->format('H:i') > $dayConfig['to'] || $endTime->format('H:i') <= $dayConfig['from']) {
+                    throw ValidationException::withMessages([
+                        'end_time' => [
+                            "O horário de funcionamento no dia de término é das {$dayConfig['from']} às {$dayConfig['to']}.",
                         ],
                     ]);
                 }
@@ -160,79 +178,184 @@ class BookingService
     }
 
     /**
-     * Cria uma nova reserva garantindo concorrência segura (transação + bloqueio).
+     * Cria uma nova reserva garantindo concorrência segura (transação + lock na linha do espaço).
      *
      * @throws ValidationException
+     * @throws BookingConflictException
      */
     public function createBooking(User $user, Space $space, array $data): Booking
     {
-        if (! $space->is_active) {
-            throw ValidationException::withMessages([
-                'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
-            ]);
-        }
-
         $startTime = Carbon::parse($data['start_time']);
         $endTime = Carbon::parse($data['end_time']);
 
-        // Valida data passada e horário de funcionamento
         $this->validateNotInPast($startTime);
-        $this->validateWorkingHours($space, $startTime, $endTime);
 
         $startUtc = $startTime->copy()->utc();
         $endUtc = $endTime->copy()->utc();
 
-        return DB::transaction(function () use ($user, $space, $startUtc, $endUtc, $data) {
-            // Previne Race Condition com Lock Pessimista
-            DB::table('bookings')
-                ->where('space_id', $space->id)
-                ->where('status', '!=', Booking::STATUS_CANCELLED)
-                ->lockForUpdate()
-                ->get();
+        return DB::transaction(function () use ($user, $space, $startTime, $endTime, $startUtc, $endUtc, $data) {
+            // Bloqueia a linha do espaço para serializar pedidos concorrentes no mesmo local,
+            // inclusive quando ainda não existe nenhuma reserva prévia na tabela bookings.
+            $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->first();
 
-            // Valida Double-Booking
-            $this->validateNoOverlap($space, $startUtc, $endUtc);
+            if (! $lockedSpace || ! $lockedSpace->is_active) {
+                throw ValidationException::withMessages([
+                    'space_id' => ['Este espaço está temporariamente inativo para reservas.'],
+                ]);
+            }
 
-            // Calcula preço
-            $totalPrice = $this->calculateTotalPrice($space, $startUtc, $endUtc);
+            $this->validateWorkingHours($lockedSpace, $startTime, $endTime);
+            $this->validateNoOverlap($lockedSpace, $startUtc, $endUtc);
+
+            $totalPrice = $this->calculateTotalPrice($lockedSpace, $startUtc, $endUtc);
 
             return Booking::create([
                 'user_id' => $user->id,
-                'space_id' => $space->id,
+                'space_id' => $lockedSpace->id,
                 'start_time' => $startUtc,
                 'end_time' => $endUtc,
                 'total_price' => $totalPrice,
-                'status' => $data['status'] ?? Booking::STATUS_CONFIRMED,
+                'status' => Booking::STATUS_CONFIRMED,
                 'notes' => $data['notes'] ?? null,
             ]);
-        });
+        }, 3);
     }
 
     /**
-     * Cancela uma reserva existente com verificação de autorização.
+     * Cancela uma reserva existente com verificação de autorização e estado.
      *
-     * @throws ValidationException
+     * @throws AccessDeniedHttpException
+     * @throws BookingConflictException
      */
     public function cancelBooking(Booking $booking, User $user, ?string $reason = null): Booking
     {
-        if (! $user->isAdmin() && $booking->user_id !== $user->id) {
-            abort(403, 'Você não tem permissão para cancelar esta reserva.');
-        }
+        return DB::transaction(function () use ($booking, $user, $reason) {
+            $locked = Booking::query()->whereKey($booking->id)->lockForUpdate()->firstOrFail();
 
-        if ($booking->status === Booking::STATUS_CANCELLED || $booking->status === Booking::STATUS_COMPLETED) {
-            throw ValidationException::withMessages([
-                'booking' => ['Esta reserva não pode mais ser cancelada.'],
+            if (! $user->isAdmin() && $locked->user_id !== $user->id) {
+                throw new AccessDeniedHttpException('Você não possui permissão para cancelar esta reserva.');
+            }
+
+            if ($locked->status === Booking::STATUS_CANCELLED) {
+                throw BookingConflictException::invalidStateTransition('Esta reserva já está cancelada.');
+            }
+
+            if ($locked->status === Booking::STATUS_COMPLETED) {
+                throw BookingConflictException::invalidStateTransition('Reservas já concluídas não podem ser canceladas.');
+            }
+
+            $locked->update([
+                'status' => Booking::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+                'cancellation_reason' => $reason,
+                'notes' => $reason
+                    ? ($locked->notes ? "{$locked->notes} | Cancelamento: {$reason}" : "Cancelamento: {$reason}")
+                    : $locked->notes,
             ]);
+
+            return $locked;
+        }, 3);
+    }
+
+    /**
+     * Atualiza o status de uma reserva via painel administrativo, impedindo reativações conflitantes.
+     *
+     * @throws BookingConflictException
+     */
+    public function updateBookingStatus(Booking $booking, string $newStatus, ?string $notes = null): Booking
+    {
+        return DB::transaction(function () use ($booking, $newStatus, $notes) {
+            $lockedSpace = Space::query()->whereKey($booking->space_id)->lockForUpdate()->firstOrFail();
+            $lockedBooking = Booking::query()->whereKey($booking->id)->lockForUpdate()->firstOrFail();
+
+            $isReactivating = $lockedBooking->status === Booking::STATUS_CANCELLED
+                && $newStatus !== Booking::STATUS_CANCELLED;
+
+            if ($isReactivating) {
+                $this->validateNoOverlap(
+                    $lockedSpace,
+                    $lockedBooking->start_time,
+                    $lockedBooking->end_time,
+                    $lockedBooking->id,
+                );
+            }
+
+            $updates = [
+                'status' => $newStatus,
+                'notes' => $notes ?? $lockedBooking->notes,
+            ];
+
+            if ($newStatus === Booking::STATUS_CANCELLED && $lockedBooking->cancelled_at === null) {
+                $updates['cancelled_at'] = now();
+            } elseif ($newStatus !== Booking::STATUS_CANCELLED) {
+                $updates['cancelled_at'] = null;
+                $updates['cancellation_reason'] = null;
+            }
+
+            $lockedBooking->update($updates);
+
+            return $lockedBooking;
+        }, 3);
+    }
+
+    /**
+     * Retorna a janela de funcionamento e os intervalos já ocupados de um espaço em um dia.
+     *
+     * @return array{
+     *     date: string,
+     *     timezone: string,
+     *     open: bool,
+     *     window: array{from: string, to: string}|null,
+     *     busy: array<int, array{start_time: string, end_time: string}>
+     * }
+     */
+    public function getDailyAvailability(Space $space, string $date): array
+    {
+        $timezone = (string) config('coworking.timezone', config('app.timezone', 'UTC'));
+        $dayStart = Carbon::createFromFormat('Y-m-d', $date, $timezone)->startOfDay();
+        $dayEnd = $dayStart->copy()->addDay();
+
+        $open = true;
+        $window = null;
+        $schedule = $space->opening_hours;
+
+        if (is_array($schedule) && ! empty($schedule)) {
+            foreach ($schedule as $item) {
+                if (isset($item['day']) && (int) $item['day'] === $dayStart->dayOfWeek) {
+                    if (empty($item['enabled'])) {
+                        $open = false;
+                    } elseif (! empty($item['from']) && ! empty($item['to'])) {
+                        $window = [
+                            'from' => (string) $item['from'],
+                            'to' => (string) $item['to'],
+                        ];
+                    }
+                    break;
+                }
+            }
         }
 
-        $booking->update([
-            'status' => Booking::STATUS_CANCELLED,
-            'notes' => $reason
-                ? ($booking->notes ? "{$booking->notes} | Cancelamento: {$reason}" : "Cancelamento: {$reason}")
-                : $booking->notes,
-        ]);
+        $busy = Booking::query()
+            ->where('space_id', $space->id)
+            ->active()
+            ->where('start_time', '<', $dayEnd->copy()->utc())
+            ->where('end_time', '>', $dayStart->copy()->utc())
+            ->orderBy('start_time')
+            ->get(['start_time', 'end_time'])
+            ->map(fn (Booking $booking): array => [
+                'start_time' => $booking->start_time->toIso8601String(),
+                'end_time' => $booking->end_time->toIso8601String(),
+            ])
+            ->values()
+            ->all();
 
-        return $booking;
+        return [
+            'date' => $date,
+            'timezone' => $timezone,
+            'open' => $open,
+            'window' => $window,
+            'busy' => $busy,
+        ];
     }
 
     /**

@@ -11,10 +11,24 @@ export interface BookingPayload {
 
 export interface BookingPreviewResult {
     available: boolean
+    conflict?: boolean
     total_price: number
     duration_hours: number
     message: string
     errors?: Record<string, string[]>
+}
+
+export interface BookingAvailabilitySlot {
+    start_time: string
+    end_time: string
+}
+
+export interface BookingAvailabilityResult {
+    date: string
+    timezone: string
+    open: boolean
+    window: { from: string; to: string } | null
+    busy: BookingAvailabilitySlot[]
 }
 
 export interface AdminBookingFilters {
@@ -29,6 +43,11 @@ export interface AdminBookingFilters {
 // A API de reserva mora ao lado dos seus tipos (Booking/AdminMetrics em spaces.ts),
 // com respostas totalmente tipadas — sem `unknown` nem casts nos hooks.
 export const bookingsApi = {
+    availability: (spaceId: number, date: string) =>
+        request<BookingAvailabilityResult>(
+            `/spaces/${spaceId}/bookings/availability?date=${encodeURIComponent(date)}`,
+        ),
+
     preview: (spaceId: number, data: { start_time: string; end_time: string }) =>
         request<BookingPreviewResult>(`/spaces/${spaceId}/bookings/preview`, {
             method: 'POST',

@@ -30,6 +30,7 @@ Route::middleware(['auth.token:optional', 'throttle:120,1'])->group(function () 
     Route::get('spaces/{space}', [PublicSpaceController::class, 'show'])->whereNumber('space');
     Route::get('spaces/{space}/reviews', [SpaceReviewController::class, 'index'])->whereNumber('space');
     Route::get('spaces/{space}/availability', [ReservationController::class, 'availability'])->whereNumber('space');
+    Route::get('spaces/{space}/bookings/availability', [BookingController::class, 'availability'])->whereNumber('space');
     Route::post('spaces/{space}/bookings/preview', [BookingController::class, 'preview'])->whereNumber('space');
 });
 
@@ -49,10 +50,16 @@ Route::middleware('auth.token')->group(function () {
 
     // Reservas (Bookings / Reservations)
     Route::get('bookings', [BookingController::class, 'index']);
-    Route::post('spaces/{space}/bookings', [BookingController::class, 'store'])->whereNumber('space');
+    Route::post('spaces/{space}/bookings', [BookingController::class, 'store'])
+        ->whereNumber('space')
+        ->middleware('throttle:20,1');
     Route::get('bookings/{booking}', [BookingController::class, 'show'])->whereNumber('booking');
-    Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])->whereNumber('booking');
-    Route::delete('bookings/{booking}', [BookingController::class, 'cancel'])->whereNumber('booking');
+    Route::post('bookings/{booking}/cancel', [BookingController::class, 'cancel'])
+        ->whereNumber('booking')
+        ->middleware('throttle:30,1');
+    Route::delete('bookings/{booking}', [BookingController::class, 'cancel'])
+        ->whereNumber('booking')
+        ->middleware('throttle:30,1');
 
     Route::get('reservations', [ReservationController::class, 'index']);
     Route::post('spaces/{space}/reservations', [ReservationController::class, 'store'])
@@ -75,7 +82,7 @@ Route::middleware('auth.token')->prefix('admin')->group(function () {
     Route::put('spaces/{space}/photos/order', [SpacePhotoController::class, 'reorder'])->whereNumber('space');
     Route::delete('spaces/{space}/photos/{photo}', [SpacePhotoController::class, 'destroy'])->whereNumber(['space', 'photo']);
 
-    // Gestão de Reservas e Métricas do Sistema (exclusivo de administradores)
+    // Gestão de Reservas e Métricas do Sistema (exclusivo para administradores)
     Route::middleware('admin')->group(function () {
         Route::get('bookings', [AdminBookingController::class, 'index']);
         Route::patch('bookings/{booking}/status', [AdminBookingController::class, 'updateStatus'])->whereNumber('booking');

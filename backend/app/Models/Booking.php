@@ -36,6 +36,8 @@ class Booking extends Model
         'total_price',
         'status',
         'notes',
+        'cancelled_at',
+        'cancellation_reason',
     ];
 
     protected function casts(): array
@@ -43,6 +45,7 @@ class Booking extends Model
         return [
             'start_time' => 'datetime',
             'end_time' => 'datetime',
+            'cancelled_at' => 'datetime',
             'total_price' => 'decimal:2',
         ];
     }

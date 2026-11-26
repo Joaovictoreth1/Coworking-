@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Alert } from '../components/admin/FormControls'
 import { BookingWidget } from '../components/BookingWidget'
 import ComponentBody from '../components/ComponentBody'
@@ -13,8 +14,10 @@ import {
     UserIcon,
 } from '../components/icons'
 import Reviews from '../components/Reviews'
+import { Skeleton } from '../components/Skeleton'
 import { Stars } from '../components/StarRating'
-import { ApiError } from '../lib/api'
+import { useSpaceDetailQuery } from '../hooks/useSpaces'
+import { ApiError, getErrorMessage } from '../lib/api'
 import { useFavoriteToggle } from '../lib/favorites'
 import { href } from '../lib/route'
 import {
@@ -22,7 +25,6 @@ import {
     amenityLabel,
     formatAddress,
     formatRating,
-    publicSpacesApi,
     type DaySchedule,
     type ReviewSummary,
     type Space,
@@ -66,52 +68,45 @@ function ScheduleList({ schedule, offLabel }: { schedule: DaySchedule[]; offLabe
 }
 
 export default function SpaceDetail({ id }: { id: number }) {
-    const [space, setSpace] = useState<Space | null>(null)
-    const [loading, setLoading] = useState(true)
-    const [error, setError] = useState('')
-    const [reloadKey, setReloadKey] = useState(0)
+    const queryClient = useQueryClient()
     const [active, setActive] = useState(0)
     const [lightboxOpen, setLightboxOpen] = useState(false)
     const addToast = useToastStore((s) => s.addToast)
 
-    useEffect(() => {
-        let cancelled = false
-        publicSpacesApi
-            .get(id)
-            .then((data) => {
-                if (!cancelled) {
-                    setError('')
-                    setSpace(data)
-                    document.title = `${data.name} · Coworking Brasil`
-                }
-            })
-            .catch((err) => {
-                if (cancelled) return
-                setError(
-                    err instanceof ApiError && err.status === 404
-                        ? 'Local não encontrado ou indisponível.'
-                        : err instanceof ApiError
-                          ? err.message
-                          : 'Não foi possível carregar o local.',
-                )
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false)
-            })
-        return () => {
-            cancelled = true
-        }
-    }, [id, reloadKey])
+    const { data: space, isLoading, error, refetch } = useSpaceDetailQuery(id)
 
-    const applyFavorite = useCallback((_id: number, favorite: boolean) => {
-        setSpace((s) => (s ? { ...s, is_favorite: favorite } : s))
-    }, [])
+    useEffect(() => {
+        if (space?.name) {
+            document.title = `${space.name} · Coworking Brasil`
+        }
+    }, [space?.name])
+
+    const applyFavorite = useCallback(
+        (spaceId: number, favorite: boolean) => {
+            queryClient.setQueryData<Space>(['space-detail', spaceId], (prev) =>
+                prev ? { ...prev, is_favorite: favorite } : prev,
+            )
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
+        },
+        [queryClient],
+    )
     const favorites = useFavoriteToggle(applyFavorite)
 
-    // Mantém a nota do cabeçalho em sincronia quando a pessoa avalia ou apaga a avaliação
-    const onSummaryChange = useCallback((summary: ReviewSummary) => {
-        setSpace((s) => (s ? { ...s, rating_avg: summary.average, reviews_count: summary.count } : s))
-    }, [])
+    const onSummaryChange = useCallback(
+        (summary: ReviewSummary) => {
+            queryClient.setQueryData<Space>(['space-detail', id], (prev) =>
+                prev ? { ...prev, rating_avg: summary.average, reviews_count: summary.count } : prev,
+            )
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
+        },
+        [queryClient, id],
+    )
+
+    const errorMessage = error
+        ? error instanceof ApiError && error.status === 404
+            ? 'Local não encontrado ou indisponível.'
+            : getErrorMessage(error, 'Não foi possível carregar o local.')
+        : ''
 
     const photos = space?.photos ?? []
     const current = photos[active] ?? photos[0]
@@ -167,41 +162,33 @@ export default function SpaceDetail({ id }: { id: number }) {
                 Todos os locais
             </a>
 
-            {loading && (
+            {isLoading && (
                 <div
                     role="status"
                     aria-live="polite"
+                    aria-busy="true"
                     aria-label="Carregando detalhes do espaço"
-                    className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem] animate-pulse"
+                    className="mt-6 grid gap-8 lg:grid-cols-[1fr_22rem]"
                 >
                     <div className="space-y-6">
-                        <div className="h-9 w-2/3 rounded-lg bg-slate-200" />
-                        <div className="h-4 w-1/2 rounded bg-slate-200" />
-                        <div className="aspect-[16/10] w-full rounded-2xl bg-slate-200" />
-                        <div className="h-24 w-full rounded-xl bg-slate-200" />
+                        <Skeleton className="h-10 w-2/3" />
+                        <Skeleton className="aspect-[16/10] w-full rounded-md" />
+                        <Skeleton className="h-24 w-full" />
                     </div>
-                    <div className="h-96 rounded-2xl bg-slate-200" />
+                    <Skeleton className="h-96 w-full rounded-3xl" />
                 </div>
             )}
 
-            {error && !loading && (
-                <div className="mt-6 space-y-3">
-                    <Alert type="error">{error}</Alert>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setLoading(true)
-                            setError('')
-                            setReloadKey((k) => k + 1)
-                        }}
-                        className={secondaryButton}
-                    >
+            {errorMessage && !isLoading && (
+                <div className="mt-6 space-y-4">
+                    <Alert type="error">{errorMessage}</Alert>
+                    <button type="button" onClick={() => void refetch()} className={secondaryButton}>
                         Tentar novamente
                     </button>
                 </div>
             )}
 
-            {space && !loading && (
+            {space && !isLoading && (
                 <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_22rem]">
                     <article className="min-w-0 space-y-10">
                         <header>
@@ -227,7 +214,10 @@ export default function SpaceDetail({ id }: { id: number }) {
                                                 </span>
                                                 <span className="text-slate-500">
                                                     ({space.reviews_count}{' '}
-                                                    {space.reviews_count === 1 ? 'avaliação' : 'avaliações'})
+                                                    {space.reviews_count === 1
+                                                        ? 'avaliação'
+                                                        : 'avaliações'}
+                                                    )
                                                 </span>
                                             </button>
                                         ) : (
@@ -273,7 +263,8 @@ export default function SpaceDetail({ id }: { id: number }) {
                             {space.capacity !== null && (
                                 <p className="mt-1 flex items-center gap-1.5 text-slate-600">
                                     <UserIcon className="h-4 w-4 shrink-0 text-slate-400" />
-                                    Até {space.capacity} {space.capacity === 1 ? 'pessoa' : 'pessoas'}
+                                    Até {space.capacity}{' '}
+                                    {space.capacity === 1 ? 'pessoa' : 'pessoas'}
                                 </p>
                             )}
                         </header>
@@ -355,7 +346,9 @@ export default function SpaceDetail({ id }: { id: number }) {
 
                         {space.description && (
                             <section>
-                                <h2 className="font-display text-xl font-semibold text-slate-900">Sobre o local</h2>
+                                <h2 className="font-display text-xl font-semibold text-slate-900">
+                                    Sobre o local
+                                </h2>
                                 <p className="mt-3 whitespace-pre-line leading-relaxed text-slate-700">
                                     {space.description}
                                 </p>
@@ -364,7 +357,9 @@ export default function SpaceDetail({ id }: { id: number }) {
 
                         {space.amenities.length > 0 && (
                             <section>
-                                <h2 className="font-display text-xl font-semibold text-slate-900">Comodidades</h2>
+                                <h2 className="font-display text-xl font-semibold text-slate-900">
+                                    Comodidades
+                                </h2>
                                 <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                                     {space.amenities.map((a) => (
                                         <li
