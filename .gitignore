@@ -1,7 +1,9 @@
 node_modules/
 vendor/
 .env
+.env.*
 !.env.example
+!.env.production.example
 *.log
 .vs/
 .idea/
@@ -9,4 +11,6 @@ vendor/
 .DS_Store
 Thumbs.db
 
-.env.production
+.venv/
+venv/
+dist/
