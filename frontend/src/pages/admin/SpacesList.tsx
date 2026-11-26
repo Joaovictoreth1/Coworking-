@@ -68,6 +68,12 @@ export default function SpacesList() {
     }, [])
 
     useEffect(() => {
+        if (meta && meta.last_page >= 1 && page > meta.last_page) {
+            setPage(meta.last_page)
+        }
+    }, [meta, page, setPage])
+
+    useEffect(() => {
         const timer = setTimeout(() => {
             const next = search.trim()
             if (next !== query) {
