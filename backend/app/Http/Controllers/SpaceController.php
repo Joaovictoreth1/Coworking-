@@ -4,16 +4,25 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\SpaceRequest;
 use App\Http\Resources\SpaceResource;
+use App\Models\Booking;
 use App\Models\Space;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SpaceController extends Controller
 {
     public function index(Request $request): AnonymousResourceCollection
     {
+        $validated = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'status' => ['nullable', 'string', Rule::in(['active', 'inactive'])],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
         $user = $request->user();
         $query = Space::query()->with(['photos', 'user'])->withStats($user)->latest('id');
 
@@ -21,15 +30,17 @@ class SpaceController extends Controller
             $query->where('user_id', $user->id);
         }
 
-        $query->search($request->query('q'));
+        $query->search($validated['q'] ?? null);
 
-        match ($request->query('status')) {
+        match ($validated['status'] ?? null) {
             'active' => $query->where('is_active', true),
             'inactive' => $query->where('is_active', false),
             default => null,
         };
 
-        return SpaceResource::collection($query->paginate(10)->withQueryString());
+        $perPage = (int) ($validated['per_page'] ?? 10);
+
+        return SpaceResource::collection($query->paginate($perPage)->withQueryString());
     }
 
     public function store(SpaceRequest $request): JsonResponse
@@ -67,12 +78,25 @@ class SpaceController extends Controller
     {
         $this->authorizeSpace($request, $space);
 
-        // Os registros das fotos caem em cascata; os arquivos precisam ser apagados à mão.
-        foreach ($space->photos as $photo) {
-            Storage::disk('public')->delete($photo->path);
+        $hasActiveFutureBookings = $space->bookings()
+            ->whereIn('status', [Booking::STATUS_PENDING, Booking::STATUS_CONFIRMED])
+            ->where('end_time', '>', now()->utc())
+            ->exists();
+
+        if ($hasActiveFutureBookings) {
+            throw ValidationException::withMessages([
+                'space' => ['Não é possível excluir um local com reservas ativas futuras. Desative o local ou cancele as reservas primeiro.'],
+            ]);
         }
 
+        // Guarda os caminhos e apaga do disco somente após confirmar a exclusão no banco.
+        $photoPaths = $space->photos()->pluck('path')->all();
+
         $space->delete();
+
+        foreach ($photoPaths as $path) {
+            Storage::disk('public')->delete($path);
+        }
 
         return response()->json(['message' => 'Local excluído.']);
     }

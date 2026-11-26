@@ -6,6 +6,7 @@ import { navigate, useRoute, useRouteId, type Route } from './lib/route'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import AccessDenied from './pages/AccessDenied'
 
 // Caminho crítico (Home/Login/Register) entra no bundle inicial.
 // As demais rotas são carregadas sob demanda (code-splitting), aliviando o
@@ -85,7 +86,7 @@ function AppContent() {
         if (!user) return null
         if (route === 'admin-dashboard') return user.is_admin ? <AdminDashboard /> : <Home />
         if (route === 'spaces') return <SpacesList />
-        if (route === 'space-new') return <SpaceForm key="new" id={null} />
+        if (route === 'space-new') return user.is_admin ? <SpaceForm key="new" id={null} /> : <AccessDenied />
         if (route === 'space-edit' && routeId !== null) return <SpaceForm key={routeId} id={routeId} />
     }
 

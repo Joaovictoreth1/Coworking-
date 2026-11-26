@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '../../auth/context'
 import ConfirmDialog from '../../components/admin/ConfirmDialog'
 import { Alert } from '../../components/admin/FormControls'
 import ComponentBody from '../../components/ComponentBody'
@@ -34,6 +36,8 @@ const STATUS_OPTIONS = [
 ]
 
 export default function SpacesList() {
+    const { user } = useAuth()
+    const queryClient = useQueryClient()
     const [items, setItems] = useState<Space[]>([])
     const [meta, setMeta] = useState<Paginated<Space>['meta'] | null>(null)
     const [loading, setLoading] = useState(true)
@@ -108,12 +112,19 @@ export default function SpacesList() {
             await spacesApi.remove(toDelete.id)
             setToDelete(null)
             setNotice({ type: 'success', text: 'Local excluído.' })
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
+            queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
             // Se era o único da última página, volta uma página
             if (items.length === 1 && page > 1) setPage(page - 1)
             setLoading(true)
             setReloadKey((k) => k + 1)
         } catch (err) {
-            setDeleteError(err instanceof ApiError ? err.message : 'Não foi possível excluir o local.')
+            const msg =
+                err instanceof ApiError
+                    ? Object.values(err.errors)[0]?.[0] ?? err.message
+                    : 'Não foi possível excluir o local.'
+            setDeleteError(msg)
         } finally {
             setDeleting(false)
         }
@@ -134,10 +145,12 @@ export default function SpacesList() {
                             : 'Gerencie os espaços disponíveis para locação.'}
                     </p>
                 </div>
-                <a href={href('space-new')} className={primaryButton}>
-                    <PlusIcon className="h-5 w-5" />
-                    Novo local
-                </a>
+                {user?.is_admin && (
+                    <a href={href('space-new')} className={primaryButton}>
+                        <PlusIcon className="h-5 w-5" />
+                        Novo local
+                    </a>
+                )}
             </div>
 
             {notice && (
@@ -176,7 +189,19 @@ export default function SpacesList() {
 
             <div className="mt-6">
                 {error ? (
-                    <Alert type="error">{error}</Alert>
+                    <div className="space-y-3">
+                        <Alert type="error">{error}</Alert>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLoading(true)
+                                setReloadKey((k) => k + 1)
+                            }}
+                            className={secondaryButton}
+                        >
+                            Tentar novamente
+                        </button>
+                    </div>
                 ) : loading && items.length === 0 ? (
                     <ul className="space-y-3" aria-busy="true">
                         {[0, 1, 2].map((i) => (
@@ -196,7 +221,7 @@ export default function SpacesList() {
                                 ? 'Tente outro termo de busca ou mude o filtro de status.'
                                 : 'Cadastre o primeiro espaço para começar.'}
                         </p>
-                        {!filtering && (
+                        {!filtering && user?.is_admin && (
                             <a href={href('space-new')} className={`${primaryButton} mt-6`}>
                                 <PlusIcon className="h-5 w-5" />
                                 Cadastrar local
@@ -320,13 +345,14 @@ export default function SpacesList() {
             {toDelete && (
                 <ConfirmDialog
                     title="Excluir local?"
-                    message={
-                        deleteError ||
-                        `"${toDelete.name}" e todas as suas fotos serão removidos. Essa ação não pode ser desfeita.`
-                    }
+                    message={`"${toDelete.name}" e todas as suas fotos serão removidos. Essa ação não pode ser desfeita.`}
+                    error={deleteError || undefined}
                     busy={deleting}
                     onConfirm={confirmDelete}
-                    onCancel={() => setToDelete(null)}
+                    onCancel={() => {
+                        setDeleteError('')
+                        setToDelete(null)
+                    }}
                 />
             )}
         </ComponentBody>

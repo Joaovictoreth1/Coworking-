@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Throwable;
 
 class SpacePhotoController extends Controller
 {
@@ -43,22 +44,38 @@ class SpacePhotoController extends Controller
         ]);
 
         $files = $request->file('photos');
+        $storedPaths = [];
 
-        if ($space->photos()->count() + count($files) > Space::MAX_PHOTOS) {
-            throw ValidationException::withMessages([
-                'photos' => ['Cada local aceita no máximo '.Space::MAX_PHOTOS.' fotos.'],
-            ]);
-        }
+        try {
+            DB::transaction(function () use ($space, $files, &$storedPaths) {
+                $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
 
-        $position = $space->photos()->max('position');
-        $position = $position === null ? 0 : $position + 1;
+                if ($lockedSpace->photos()->count() + count($files) > Space::MAX_PHOTOS) {
+                    throw ValidationException::withMessages([
+                        'photos' => ['Cada local aceita no máximo '.Space::MAX_PHOTOS.' fotos.'],
+                    ]);
+                }
 
-        foreach ($files as $file) {
-            $space->photos()->create([
-                'path' => $file->store("spaces/{$space->id}", 'public'),
-                'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
-                'position' => $position++,
-            ]);
+                $position = $lockedSpace->photos()->max('position');
+                $position = $position === null ? 0 : $position + 1;
+
+                foreach ($files as $file) {
+                    $path = $file->store("spaces/{$lockedSpace->id}", 'public');
+                    $storedPaths[] = $path;
+
+                    $lockedSpace->photos()->create([
+                        'path' => $path,
+                        'original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                        'position' => $position++,
+                    ]);
+                }
+            });
+        } catch (Throwable $e) {
+            foreach ($storedPaths as $path) {
+                Storage::disk('public')->delete($path);
+            }
+
+            throw $e;
         }
 
         return (new SpaceResource($space->load('photos')))
@@ -72,13 +89,18 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
 
         $data = $request->validate([
-            'ids' => ['required', 'array', 'list', 'max:'.Space::MAX_PHOTOS],
+            'ids' => ['required', 'array', 'list', 'min:1', 'max:'.Space::MAX_PHOTOS],
             'ids.*' => ['required', 'integer', 'distinct'],
+        ], [
+            'ids.required' => 'Informe a ordem das fotos.',
+            'ids.min' => 'Informe ao menos uma foto para reordenar.',
+            'ids.*.distinct' => 'Há fotos repetidas na ordenação.',
         ]);
 
         DB::transaction(function () use ($space, $data) {
-            $photos = SpacePhoto::query()->where('space_id', $space->id);
-            $currentIds = (clone $photos)->orderBy('id')->lockForUpdate()->pluck('id');
+            $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
+            $photos = $lockedSpace->photos();
+            $currentIds = (clone $photos)->pluck('id');
             $requestedIds = array_map('intval', $data['ids']);
 
             if ($currentIds->count() !== count($requestedIds) || $currentIds->diff($requestedIds)->isNotEmpty()) {
@@ -100,8 +122,22 @@ class SpacePhotoController extends Controller
         abort_unless($space->manageableBy($request->user()), 404);
         abort_unless($photo->space_id === $space->id, 404);
 
-        Storage::disk('public')->delete($photo->path);
-        $photo->delete();
+        $path = DB::transaction(function () use ($space, $photo) {
+            $lockedSpace = Space::query()->whereKey($space->id)->lockForUpdate()->firstOrFail();
+            $photo = $lockedSpace->photos()->whereKey($photo->id)->firstOrFail();
+            $photo->delete();
+
+            $remaining = $lockedSpace->photos()->pluck('id');
+            foreach ($remaining as $position => $id) {
+                SpacePhoto::where('space_id', $space->id)
+                    ->where('id', $id)
+                    ->update(['position' => $position]);
+            }
+
+            return $photo->path;
+        }, 3);
+
+        Storage::disk('public')->delete($path);
 
         return new SpaceResource($space->load('photos'));
     }

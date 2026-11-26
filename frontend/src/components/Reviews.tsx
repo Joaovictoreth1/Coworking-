@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../auth/context'
 import { ApiError } from '../lib/api'
 import { href } from '../lib/route'
@@ -67,6 +68,7 @@ export default function Reviews({
     onSummaryChange?: (summary: ReviewSummary) => void
 }) {
     const { user } = useAuth()
+    const queryClient = useQueryClient()
     const onSummary = useRef(onSummaryChange)
     useEffect(() => {
         onSummary.current = onSummaryChange
@@ -140,6 +142,7 @@ export default function Reviews({
         setSaved(false)
         try {
             await reviewsApi.save(spaceId, { rating, comment: comment.trim() || null })
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
             await load()
             setSaved(true)
         } catch (err) {
@@ -160,6 +163,7 @@ export default function Reviews({
             await reviewsApi.remove(spaceId, toDelete.id)
             setToDelete(null)
             setSaved(false)
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
             await load()
         } catch (err) {
             setToDelete(null)
@@ -178,10 +182,23 @@ export default function Reviews({
             </h2>
 
             {error && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-3">
                     <Alert type="error" onClose={() => setError('')}>
                         {error}
                     </Alert>
+                    {!summary && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLoading(true)
+                                setError('')
+                                void load()
+                            }}
+                            className={secondaryButton}
+                        >
+                            Tentar novamente
+                        </button>
+                    )}
                 </div>
             )}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../auth/context'
-import { href } from '../lib/route'
-import { APP_NAME, NAV_DROPDOWN, NAV_LINKS } from '../lib/site'
+import { href, useRoute } from '../lib/route'
+import { APP_NAME } from '../lib/site'
 import Container from './Container'
 import Dropdown from './Dropdown'
 import {
@@ -37,9 +37,10 @@ interface MobileMenuProps {
 
 // --- Estilos Base ---
 const linkBase =
-    'rounded px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
+    'rounded-lg px-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
+const linkActive = 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-800'
 const menuItem =
-    'flex w-full items-center gap-2.5 rounded px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
+    'flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 hover:text-slate-900'
 
 // --- Hooks Customizados ---
 /** Hook para adicionar debounce em um valor (útil para buscas) */
@@ -83,40 +84,6 @@ function SearchBar({ onSearch, className = '', placeholder = 'Pesquisar' }: Sear
                 className="h-9 w-full rounded border border-slate-200 bg-slate-100 pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-500 focus:bg-white"
             />
         </form>
-    )
-}
-
-function ResourcesDropdown() {
-    return (
-        <Dropdown
-            triggerClassName={`${linkBase} flex items-center gap-1 py-2`}
-            trigger={
-                <>
-                    {NAV_DROPDOWN.label}
-                    <ChevronDownIcon className="h-4 w-4 text-slate-500" />
-                </>
-            }
-        >
-            {(close) =>
-                NAV_DROPDOWN.items.map((item) => (
-                    <a
-                        key={item.href}
-                        href={item.href}
-                        onClick={close}
-                        className="block rounded px-3 py-2 transition hover:bg-slate-100"
-                    >
-                        <span className="block text-sm font-medium text-slate-900">
-                            {item.label}
-                        </span>
-                        {item.description && (
-                            <span className="block text-xs text-slate-600">
-                                {item.description}
-                            </span>
-                        )}
-                    </a>
-                ))
-            }
-        </Dropdown>
     )
 }
 
@@ -202,57 +169,100 @@ function UserMenu() {
 }
 
 function MobileMenu({ isOpen, onClose, onSearch }: MobileMenuProps) {
-    // Acessibilidade extra: previne rolagem do body quando o menu está aberto
+    const { user } = useAuth()
+    const route = useRoute()
+
+    // Acessibilidade extra: previne rolagem do body e fecha com Escape quando o menu está aberto
     useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden'
-        } else {
+        if (!isOpen) {
             document.body.style.overflow = ''
+            return
         }
+        document.body.style.overflow = 'hidden'
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose()
+        }
+        document.addEventListener('keydown', onKeyDown)
         return () => {
             document.body.style.overflow = ''
+            document.removeEventListener('keydown', onKeyDown)
         }
-    }, [isOpen])
+    }, [isOpen, onClose])
 
     if (!isOpen) return null
 
     return (
-        <div 
-            id="mobile-menu" 
-            className="absolute left-0 top-16 z-30 w-full border-b border-slate-200 bg-white px-4 pb-4 pt-3 shadow-lg lg:hidden"
+        <div
+            id="mobile-menu"
+            className="absolute left-0 top-16 z-30 w-full border-b border-slate-200 bg-white/95 px-4 pb-5 pt-3 shadow-xl backdrop-blur-md lg:hidden"
         >
-            <SearchBar onSearch={onSearch} className="mb-4" />
+            {onSearch && <SearchBar onSearch={onSearch} className="mb-4" />}
             <nav aria-label="Navegação mobile" className="flex flex-col gap-1">
-                {NAV_LINKS.map((link) => (
-                    <a
-                        key={link.href}
-                        href={link.href}
-                        onClick={onClose}
-                        className={`${linkBase} py-3`}
-                    >
-                        {link.label}
-                    </a>
-                ))}
-                <details className="group">
-                    <summary
-                        className={`${linkBase} flex cursor-pointer list-none items-center justify-between py-3 [&::-webkit-details-marker]:hidden`}
-                    >
-                        {NAV_DROPDOWN.label}
-                        <ChevronDownIcon className="h-4 w-4 text-slate-500 transition group-open:rotate-180" />
-                    </summary>
-                    <div className="ml-3 mt-1 flex flex-col gap-1 border-l border-slate-200 pl-2">
-                        {NAV_DROPDOWN.items.map((item) => (
+                <a
+                    href={href('home')}
+                    onClick={onClose}
+                    aria-current={route === 'home' ? 'page' : undefined}
+                    className={`${linkBase} py-3 ${route === 'home' ? linkActive : ''}`}
+                >
+                    Explorar espaços
+                </a>
+                {user ? (
+                    <>
+                        <a
+                            href={href('my-bookings')}
+                            onClick={onClose}
+                            aria-current={route === 'my-bookings' ? 'page' : undefined}
+                            className={`${linkBase} py-3 ${route === 'my-bookings' ? linkActive : ''}`}
+                        >
+                            Minhas reservas
+                        </a>
+                        <a
+                            href={href('favorites')}
+                            onClick={onClose}
+                            aria-current={route === 'favorites' ? 'page' : undefined}
+                            className={`${linkBase} py-3 ${route === 'favorites' ? linkActive : ''}`}
+                        >
+                            Meus favoritos
+                        </a>
+                        {user.is_admin && (
                             <a
-                                key={item.href}
-                                href={item.href}
+                                href={href('admin-dashboard')}
                                 onClick={onClose}
-                                className={`${linkBase} py-2.5`}
+                                aria-current={route === 'admin-dashboard' ? 'page' : undefined}
+                                className={`${linkBase} py-3 ${route === 'admin-dashboard' ? linkActive : ''}`}
                             >
-                                {item.label}
+                                Dashboard Admin
                             </a>
-                        ))}
-                    </div>
-                </details>
+                        )}
+                        <a
+                            href={href('spaces')}
+                            onClick={onClose}
+                            aria-current={route === 'spaces' ? 'page' : undefined}
+                            className={`${linkBase} py-3 ${route === 'spaces' ? linkActive : ''}`}
+                        >
+                            {user.is_admin ? 'Gerenciar locais' : 'Meus locais'}
+                        </a>
+                    </>
+                ) : (
+                    <>
+                        <a
+                            href={href('login')}
+                            onClick={onClose}
+                            aria-current={route === 'login' ? 'page' : undefined}
+                            className={`${linkBase} py-3 ${route === 'login' ? linkActive : ''}`}
+                        >
+                            Entrar
+                        </a>
+                        <a
+                            href={href('register')}
+                            onClick={onClose}
+                            aria-current={route === 'register' ? 'page' : undefined}
+                            className={`${linkBase} py-3 ${route === 'register' ? linkActive : ''}`}
+                        >
+                            Criar conta
+                        </a>
+                    </>
+                )}
             </nav>
         </div>
     )
@@ -260,13 +270,15 @@ function MobileMenu({ isOpen, onClose, onSearch }: MobileMenuProps) {
 
 // --- Componente Principal ---
 export default function ComponentNavbar({ onSearch }: NavbarProps) {
+    const { user } = useAuth()
+    const route = useRoute()
     const [menuOpen, setMenuOpen] = useState(false)
     const closeMenu = useCallback(() => setMenuOpen(false), [])
 
     // Fecha o menu mobile se a tela for redimensionada para desktop
     useEffect(() => {
         const handleResize = () => {
-            if (window.innerWidth >= 1024) { // 1024px é o breakpoint 'lg' do Tailwind
+            if (window.innerWidth >= 1024) {
                 setMenuOpen(false)
             }
         }
@@ -275,29 +287,57 @@ export default function ComponentNavbar({ onSearch }: NavbarProps) {
     }, [])
 
     return (
-        <header className="sticky top-0 z-40 bg-white">
-            <div className="border-b border-slate-200">
+        <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md">
+            <div className="border-b border-slate-200/80">
                 <Container>
                     <div className="flex h-16 items-center gap-3">
                         {/* Esquerda: logo + título */}
                         <a href={href('home')} className="mr-auto flex shrink-0 items-center gap-2.5 lg:mr-0">
                             <Logo />
-                            <span className="font-display text-lg font-semibold tracking-tight text-slate-900">
+                            <span className="font-display text-lg font-bold tracking-tight text-slate-900">
                                 {APP_NAME}
                             </span>
                         </a>
 
-                        {/* Meio: links, dropdown e pesquisa (desktop) */}
+                        {/* Meio: links funcionais com estado ativo (desktop) */}
                         <div className="hidden flex-1 items-center justify-center gap-1 lg:flex">
                             <nav aria-label="Navegação principal" className="flex items-center gap-1">
-                                {NAV_LINKS.map((link) => (
-                                    <a key={link.href} href={link.href} className={`${linkBase} py-2`}>
-                                        {link.label}
-                                    </a>
-                                ))}
-                                <ResourcesDropdown />
+                                <a
+                                    href={href('home')}
+                                    aria-current={route === 'home' ? 'page' : undefined}
+                                    className={`${linkBase} py-2 ${route === 'home' ? linkActive : ''}`}
+                                >
+                                    Explorar
+                                </a>
+                                {user && (
+                                    <>
+                                        <a
+                                            href={href('my-bookings')}
+                                            aria-current={route === 'my-bookings' ? 'page' : undefined}
+                                            className={`${linkBase} py-2 ${route === 'my-bookings' ? linkActive : ''}`}
+                                        >
+                                            Minhas reservas
+                                        </a>
+                                        <a
+                                            href={href('favorites')}
+                                            aria-current={route === 'favorites' ? 'page' : undefined}
+                                            className={`${linkBase} py-2 ${route === 'favorites' ? linkActive : ''}`}
+                                        >
+                                            Favoritos
+                                        </a>
+                                        {user.is_admin && (
+                                            <a
+                                                href={href('admin-dashboard')}
+                                                aria-current={route === 'admin-dashboard' ? 'page' : undefined}
+                                                className={`${linkBase} py-2 ${route === 'admin-dashboard' ? linkActive : ''}`}
+                                            >
+                                                Admin
+                                            </a>
+                                        )}
+                                    </>
+                                )}
                             </nav>
-                            <SearchBar onSearch={onSearch} className="ml-3 w-48 xl:w-64" />
+                            {onSearch && <SearchBar onSearch={onSearch} className="ml-3 w-48 xl:w-64" />}
                         </div>
 
                         {/* Direita: usuário + botão do menu mobile */}
