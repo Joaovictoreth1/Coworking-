@@ -214,26 +214,6 @@ export default function Home() {
                             </li>
                         ))}
                     </ul>
-                ) : items.length === 0 ? (
-                    <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
-                        <p className="font-display text-xl font-semibold text-slate-900">
-                            {filtersOn ? 'Nenhum local encontrado' : 'Ainda não há locais disponíveis'}
-                        </p>
-                        <p className="mt-2 text-slate-600">
-                            {filtersOn
-                                ? 'Tente outro termo ou ajuste a faixa de preço.'
-                                : 'Volte em breve.'}
-                        </p>
-                        {filtersOn && (
-                            <button
-                                type="button"
-                                onClick={clearAll}
-                                className={`${secondaryButton} mt-5`}
-                            >
-                                Limpar busca e filtros
-                            </button>
-                        )}
-                    </div>
                 ) : (
                     <>
                         {meta && (
@@ -294,8 +274,30 @@ export default function Home() {
                             <GoogleMapsExplorer
                                 spaces={items}
                                 activeSearch={search}
+                                filtersOn={filtersOn}
                                 onSelectHub={(hubQuery) => setSearch(hubQuery)}
+                                onClearAll={clearAll}
                             />
+                        ) : items.length === 0 ? (
+                            <div className="rounded-2xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+                                <p className="font-display text-xl font-semibold text-slate-900">
+                                    {filtersOn ? 'Nenhum local encontrado' : 'Ainda não há locais disponíveis'}
+                                </p>
+                                <p className="mt-2 text-slate-600">
+                                    {filtersOn
+                                        ? 'Tente outro termo ou ajuste a faixa de preço.'
+                                        : 'Volte em breve.'}
+                                </p>
+                                {filtersOn && (
+                                    <button
+                                        type="button"
+                                        onClick={clearAll}
+                                        className={`${secondaryButton} mt-5`}
+                                    >
+                                        Limpar busca e filtros
+                                    </button>
+                                )}
+                            </div>
                         ) : (
                             <ul
                                 aria-label="Lista de espaços"

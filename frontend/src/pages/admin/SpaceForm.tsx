@@ -114,6 +114,21 @@ const fromSpace = (s: Space): FormState => ({
 
 const orNull = (text: string) => text.trim() || null
 
+const COORD_RE = /^-?\d+(?:[.,]\d+)?$/
+
+function parseCoordinate(
+    raw: string,
+    min: number,
+    max: number,
+): { valid: boolean; value: number | null } {
+    const trimmed = raw.trim()
+    if (!trimmed) return { valid: true, value: null }
+    if (!COORD_RE.test(trimmed)) return { valid: false, value: null }
+    const num = Number(trimmed.replace(',', '.'))
+    if (!Number.isFinite(num) || num < min || num > max) return { valid: false, value: null }
+    return { valid: true, value: num }
+}
+
 const toPayload = (f: FormState): SpacePayload => ({
     name: f.name.trim(),
     description: orNull(f.description),
@@ -125,8 +140,8 @@ const toPayload = (f: FormState): SpacePayload => ({
     neighborhood: orNull(f.neighborhood),
     city: f.city.trim(),
     state: f.state,
-    latitude: f.latitude.trim() ? Number(f.latitude.replace(',', '.')) : null,
-    longitude: f.longitude.trim() ? Number(f.longitude.replace(',', '.')) : null,
+    latitude: parseCoordinate(f.latitude, -90, 90).value,
+    longitude: parseCoordinate(f.longitude, -180, 180).value,
     // Espaço gratuito não tem preços
     hourly_price: !f.is_free && f.hourly_enabled ? parseMoney(f.hourly_price) : null,
     daily_price: !f.is_free && f.daily_enabled ? parseMoney(f.daily_price) : null,
@@ -151,6 +166,15 @@ function validate(f: FormState): Errors {
     if (!f.street.trim()) add('street', 'Informe a rua.')
     if (!f.city.trim()) add('city', 'Informe a cidade.')
     if (!f.state) add('state', 'Informe o estado.')
+
+    const latParsed = parseCoordinate(f.latitude, -90, 90)
+    const lngParsed = parseCoordinate(f.longitude, -180, 180)
+    if (!latParsed.valid) add('latitude', 'Latitude inválida. Use um valor entre -90 e 90 (ex.: -23.5629).')
+    if (!lngParsed.valid) add('longitude', 'Longitude inválida. Use um valor entre -180 e 180 (ex.: -46.6544).')
+    if (latParsed.valid && lngParsed.valid && (latParsed.value === null) !== (lngParsed.value === null)) {
+        if (latParsed.value === null) add('latitude', 'Informe a latitude junto com a longitude.')
+        if (lngParsed.value === null) add('longitude', 'Informe a longitude junto com a latitude.')
+    }
 
     if (!f.is_free) {
         if (!f.hourly_enabled && !f.daily_enabled && !f.monthly_enabled) {
@@ -635,12 +659,8 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                             neighborhood: form.neighborhood.trim() || null,
                                             city: form.city.trim() || 'São Paulo',
                                             state: form.state || 'SP',
-                                            latitude: form.latitude.trim()
-                                                ? Number(form.latitude.replace(',', '.'))
-                                                : null,
-                                            longitude: form.longitude.trim()
-                                                ? Number(form.longitude.replace(',', '.'))
-                                                : null,
+                                            latitude: parseCoordinate(form.latitude, -90, 90).value,
+                                            longitude: parseCoordinate(form.longitude, -180, 180).value,
                                         })}
                                         target="_blank"
                                         rel="noopener noreferrer"

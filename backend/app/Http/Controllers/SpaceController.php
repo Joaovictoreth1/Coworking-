@@ -69,7 +69,30 @@ class SpaceController extends Controller
     public function update(SpaceRequest $request, Space $space): SpaceResource
     {
         $this->authorizeSpace($request, $space);
-        $space->update($request->validated());
+        $data = $request->validated();
+
+        $addressFields = ['zip_code', 'street', 'number', 'neighborhood', 'city', 'state'];
+        $addressChanged = false;
+        foreach ($addressFields as $field) {
+            if (array_key_exists($field, $data) && (string) ($data[$field] ?? '') !== (string) ($space->{$field} ?? '')) {
+                $addressChanged = true;
+                break;
+            }
+        }
+
+        if ($addressChanged) {
+            $hasNewLat = array_key_exists('latitude', $data) && $data['latitude'] !== null
+                && (float) $data['latitude'] !== (float) $space->latitude;
+            $hasNewLng = array_key_exists('longitude', $data) && $data['longitude'] !== null
+                && (float) $data['longitude'] !== (float) $space->longitude;
+
+            if (! $hasNewLat && ! $hasNewLng) {
+                $data['latitude'] = null;
+                $data['longitude'] = null;
+            }
+        }
+
+        $space->update($data);
 
         return new SpaceResource($space->load('photos'));
     }

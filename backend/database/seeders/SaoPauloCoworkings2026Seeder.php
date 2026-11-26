@@ -340,7 +340,7 @@ class SaoPauloCoworkings2026Seeder extends Seeder
         foreach (self::COMPANIES as $item) {
             $schedule = $this->buildSchedule($item['days'], $item['from'], $item['to']);
 
-            Space::updateOrCreate(
+            Space::firstOrCreate(
                 [
                     'name' => $item['name'],
                     'city' => $item['city'],
