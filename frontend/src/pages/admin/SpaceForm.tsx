@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import AmenityPicker from '../../components/admin/AmenityPicker'
 import { Alert, Section, Select, Switch, TextArea } from '../../components/admin/FormControls'
 import PhotoManager from '../../components/admin/PhotoManager'
@@ -161,8 +162,26 @@ function validate(f: FormState): Errors {
             else if (d.from && d.to <= d.from) add(`${field}.${i}.to`, 'O término deve ser depois do início.')
         })
     }
+    if (!f.opening_hours.some((d) => d.enabled))
+        add('opening_hours', 'Marque ao menos um dia de funcionamento.')
     if (!f.availability.some((d) => d.enabled))
         add('availability', 'Marque ao menos um dia disponível para locação.')
+
+    // Garante que os horários de locação estejam dentro do horário de funcionamento do mesmo dia
+    f.availability.forEach((avail, i) => {
+        if (!avail.enabled) return
+        const open = f.opening_hours.find((o) => o.day === avail.day)
+        if (!open || !open.enabled) {
+            add(`availability.${i}.from`, 'O local está fechado neste dia no horário de funcionamento.')
+            return
+        }
+        if (open.from && avail.from && avail.from < open.from) {
+            add(`availability.${i}.from`, `O início da locação não pode ser antes da abertura (${open.from}).`)
+        }
+        if (open.to && avail.to && avail.to > open.to) {
+            add(`availability.${i}.to`, `O término da locação não pode passar do fechamento (${open.to}).`)
+        }
+    })
 
     return errors
 }
@@ -223,6 +242,7 @@ function PriceOption({
 
 export default function SpaceForm({ id }: { id: number | null }) {
     const isEdit = id !== null
+    const queryClient = useQueryClient()
 
     const [form, setForm] = useState<FormState>(emptyForm)
     const [photos, setPhotos] = useState<PhotoItem[]>([])
@@ -232,6 +252,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
     const [notice, setNotice] = useState(peekFlash)
     const [loading, setLoading] = useState(isEdit)
     const [loadError, setLoadError] = useState('')
+    const [reloadKey, setReloadKey] = useState(0)
     const [submitting, setSubmitting] = useState(false)
 
     const photosRef = useRef(photos)
@@ -261,7 +282,10 @@ export default function SpaceForm({ id }: { id: number | null }) {
         spacesApi
             .get(id)
             .then((space) => {
-                if (!cancelled) applySpace(space)
+                if (!cancelled) {
+                    setLoadError('')
+                    applySpace(space)
+                }
             })
             .catch((err) => {
                 if (!cancelled)
@@ -273,7 +297,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
         return () => {
             cancelled = true
         }
-    }, [id])
+    }, [id, reloadKey])
 
     const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
         setForm((f) => ({ ...f, [key]: value }))
@@ -369,6 +393,10 @@ export default function SpaceForm({ id }: { id: number | null }) {
             saved = id === null ? await spacesApi.create(payload) : await spacesApi.update(id, payload)
             await syncPhotos(saved.id, saved)
 
+            queryClient.invalidateQueries({ queryKey: ['spaces'] })
+            queryClient.invalidateQueries({ queryKey: ['admin-metrics'] })
+            queryClient.invalidateQueries({ queryKey: ['booking-preview'] })
+
             setFlash({
                 type: 'success',
                 text: isEdit ? 'Local atualizado com sucesso.' : 'Local cadastrado com sucesso.',
@@ -442,8 +470,19 @@ export default function SpaceForm({ id }: { id: number | null }) {
                 {loading && <p className="mt-10 text-slate-600">Carregando...</p>}
 
                 {loadError && (
-                    <div className="mt-6">
+                    <div className="mt-6 space-y-3">
                         <Alert type="error">{loadError}</Alert>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLoading(true)
+                                setLoadError('')
+                                setReloadKey((k) => k + 1)
+                            }}
+                            className={secondaryButton}
+                        >
+                            Tentar novamente
+                        </button>
                     </div>
                 )}
 
@@ -452,6 +491,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
                         <Section title="Informações básicas">
                             <Field
                                 label="Nome do local"
+                                maxLength={150}
                                 placeholder="Ex.: Sala de reunião Paulista"
                                 value={form.name}
                                 onChange={(v) => set('name', v)}
@@ -673,6 +713,7 @@ export default function SpaceForm({ id }: { id: number | null }) {
                                 onChange={setPhotos}
                                 onRemove={removePhoto}
                                 error={errors.photos?.[0]}
+                                disabled={submitting}
                             />
                         </Section>
 

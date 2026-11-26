@@ -9,7 +9,18 @@ class SpaceRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->isAdmin() ?? false;
+        $user = $this->user();
+        if (! $user) {
+            return false;
+        }
+
+        // Criação de espaços é restrita a administradores; na edição, o controller valida
+        // se o usuário é admin ou dono do espaço (retornando 404 para terceiros).
+        if ($this->route('space') !== null) {
+            return true;
+        }
+
+        return $user->isAdmin();
     }
 
     protected function prepareForValidation(): void
@@ -83,6 +94,7 @@ class SpaceRequest extends FormRequest
 
                 $this->checkSchedule($validator, 'opening_hours');
                 $this->checkSchedule($validator, 'availability');
+                $this->checkAvailabilityWithinOpeningHours($validator);
             },
         ];
     }
@@ -119,8 +131,66 @@ class SpaceRequest extends FormRequest
             }
         }
 
+        if ($field === 'opening_hours' && ! $hasEnabledDay) {
+            $validator->errors()->add($field, 'Marque ao menos um dia de funcionamento.');
+        }
+
         if ($field === 'availability' && ! $hasEnabledDay) {
             $validator->errors()->add($field, 'Marque ao menos um dia disponível para locação.');
+        }
+    }
+
+    private function checkAvailabilityWithinOpeningHours(Validator $validator): void
+    {
+        $data = $validator->getData();
+        $opening = $data['opening_hours'] ?? null;
+        $availability = $data['availability'] ?? null;
+
+        if (! is_array($opening) || ! is_array($availability)) {
+            return;
+        }
+
+        $openingByDay = [];
+        foreach ($opening as $entry) {
+            if (is_array($entry) && isset($entry['day'])) {
+                $openingByDay[(int) $entry['day']] = $entry;
+            }
+        }
+
+        foreach ($availability as $i => $avail) {
+            if (! is_array($avail) || ! filter_var($avail['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                continue;
+            }
+
+            $day = isset($avail['day']) ? (int) $avail['day'] : null;
+            $open = $day !== null ? ($openingByDay[$day] ?? null) : null;
+
+            if (! $open || ! filter_var($open['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                $validator->errors()->add(
+                    "availability.$i.from",
+                    'O local está fechado neste dia no horário de funcionamento.'
+                );
+                continue;
+            }
+
+            $openFrom = $open['from'] ?? null;
+            $openTo = $open['to'] ?? null;
+            $availFrom = $avail['from'] ?? null;
+            $availTo = $avail['to'] ?? null;
+
+            if (is_string($openFrom) && is_string($availFrom) && $openFrom !== '' && $availFrom !== '' && $availFrom < $openFrom) {
+                $validator->errors()->add(
+                    "availability.$i.from",
+                    "O início da locação não pode ser antes da abertura ({$openFrom})."
+                );
+            }
+
+            if (is_string($openTo) && is_string($availTo) && $openTo !== '' && $availTo !== '' && $availTo > $openTo) {
+                $validator->errors()->add(
+                    "availability.$i.to",
+                    "O término da locação não pode passar do fechamento ({$openTo})."
+                );
+            }
         }
     }
 
