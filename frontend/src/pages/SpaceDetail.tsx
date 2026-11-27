@@ -21,12 +21,15 @@ import {
     WEEKDAYS,
     amenityLabel,
     formatAddress,
+    formatBRL,
     formatRating,
+    priceList,
     publicSpacesApi,
     type DaySchedule,
     type ReviewSummary,
     type Space,
 } from '../lib/spaces'
+import { STATIC_MODE, STATIC_NOTICE } from '../lib/staticMode'
 import { secondaryButton } from '../lib/ui'
 import { useToastStore } from '../store/useToastStore'
 
@@ -248,11 +251,13 @@ export default function SpaceDetail({ id }: { id: number }) {
                                     >
                                         Compartilhar
                                     </button>
-                                    <FavoriteButton
-                                        variant="full"
-                                        active={space.is_favorite}
-                                        onToggle={() => favorites.toggle(space)}
-                                    />
+                                    {!STATIC_MODE && (
+                                        <FavoriteButton
+                                            variant="full"
+                                            active={space.is_favorite}
+                                            onToggle={() => favorites.toggle(space)}
+                                        />
+                                    )}
                                 </div>
                             </div>
                             {favorites.error && (
@@ -380,32 +385,52 @@ export default function SpaceDetail({ id }: { id: number }) {
                         )}
 
                         <div className="grid gap-8 md:grid-cols-2">
-                            <section>
-                                <h2 className="font-display text-xl font-semibold text-slate-900">
-                                    Horário de funcionamento
-                                </h2>
-                                <div className="mt-4">
-                                    <ScheduleList schedule={space.opening_hours} offLabel="Fechado" />
-                                </div>
-                            </section>
-                            <section>
-                                <h2 className="font-display text-xl font-semibold text-slate-900">
-                                    Disponível para locação
-                                </h2>
-                                <div className="mt-4">
-                                    <ScheduleList schedule={space.availability} offLabel="Indisponível" />
-                                </div>
-                            </section>
+                            {(!STATIC_MODE || space.opening_hours.length > 0) && (
+                                <section>
+                                    <h2 className="font-display text-xl font-semibold text-slate-900">
+                                        Horário de funcionamento
+                                    </h2>
+                                    <div className="mt-4">
+                                        <ScheduleList schedule={space.opening_hours} offLabel="Fechado" />
+                                    </div>
+                                </section>
+                            )}
+                            {!STATIC_MODE && (
+                                <section>
+                                    <h2 className="font-display text-xl font-semibold text-slate-900">
+                                        Disponível para locação
+                                    </h2>
+                                    <div className="mt-4">
+                                        <ScheduleList schedule={space.availability} offLabel="Indisponível" />
+                                    </div>
+                                </section>
+                            )}
                         </div>
 
-                        <Reviews
-                            spaceId={space.id}
-                            ownerId={space.owner_id}
-                            onSummaryChange={onSummaryChange}
-                        />
+                        {!STATIC_MODE && (
+                            <Reviews
+                                spaceId={space.id}
+                                ownerId={space.owner_id}
+                                onSummaryChange={onSummaryChange}
+                            />
+                        )}
                     </article>
 
-                    <BookingWidget space={space} />
+                    {STATIC_MODE ? (
+                        <aside className="self-start space-y-3 rounded-2xl border border-slate-200 bg-white p-5">
+                            <h2 className="font-display text-xl font-semibold text-slate-900">Visita e valores</h2>
+                            <p className="text-sm text-slate-600">{STATIC_NOTICE}</p>
+                            {space.is_free && <p className="text-sm font-semibold text-emerald-700">Acesso gratuito</p>}
+                            {priceList(space).map((price) => (
+                                <p key={price.key} className="text-sm">A partir de {formatBRL(price.value)}{price.unit}</p>
+                            ))}
+                            {space.source_url && (
+                                <a href={space.source_url} className="text-sm font-semibold text-indigo-700 underline">
+                                    Confirmar informações no site oficial
+                                </a>
+                            )}
+                        </aside>
+                    ) : <BookingWidget space={space} />}
                 </div>
             )}
 

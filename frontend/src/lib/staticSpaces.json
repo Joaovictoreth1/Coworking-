@@ -1,0 +1,166 @@
+[
+  {
+    "id": 1,
+    "name": "WeWork Paulista 1374",
+    "street": "Avenida Paulista",
+    "number": "1374",
+    "neighborhood": "Bela Vista",
+    "zip_code": "01310-100",
+    "description": "Coworking em frente ao MASP. A diária é para o passe individual; a tarifa por hora é para sala de reunião.",
+    "source_url": "https://www.wework.com/pt-BR/buildings/paulista-1374--sao-paulo",
+    "hourly_price": 119,
+    "daily_price": 214,
+    "amenities": [
+      "wifi",
+      "coffee",
+      "meeting_rooms"
+    ]
+  },
+  {
+    "id": 2,
+    "name": "WeWork Nações Unidas 12901",
+    "street": "Avenida das Nações Unidas",
+    "number": "12901",
+    "complement": "Torre Norte",
+    "neighborhood": "Brooklin Paulista",
+    "zip_code": "04578-910",
+    "description": "Passe diário, salas de reunião por hora e escritório privativo mensal para uma pessoa.",
+    "source_url": "https://www.wework.com/pt-BR/buildings/nacoes-unidas-12901--sao-paulo",
+    "hourly_price": 119,
+    "daily_price": 214,
+    "monthly_price": 1600,
+    "amenities": [
+      "wifi",
+      "coffee"
+    ]
+  },
+  {
+    "id": 3,
+    "name": "WeWork Faria Lima 4055",
+    "street": "Avenida Brigadeiro Faria Lima",
+    "number": "4055",
+    "neighborhood": "Itaim Bibi",
+    "zip_code": "04538-133",
+    "description": "Passes diários, salas de reunião e escritórios privativos. Consulte os valores da unidade.",
+    "source_url": "https://www.wework.com/buildings/faria-lima-4055--sao-paulo",
+    "amenities": [
+      "wifi",
+      "coffee"
+    ]
+  },
+  {
+    "id": 4,
+    "name": "Regus Torre João Salem",
+    "street": "Avenida Paulista",
+    "number": "1079",
+    "complement": "7º e 8º andares",
+    "neighborhood": "Bela Vista",
+    "zip_code": "01311-200",
+    "description": "Escritórios flexíveis e passe diário de coworking na Torre João Salem.",
+    "source_url": "https://www.regus.com/pt/br/1500",
+    "daily_price": 229
+  },
+  {
+    "id": 5,
+    "name": "Spaces Alameda Santos",
+    "street": "Alameda Santos",
+    "number": "200",
+    "neighborhood": "Cerqueira César",
+    "zip_code": "01418-000",
+    "description": "Escritórios flexíveis e coworking no Edifício Victoria Plaza. Consulte as condições de acesso.",
+    "source_url": "https://www.myspacesworks.com/centre/2025/details",
+    "weekday_hours": {
+      "from": "09:00",
+      "to": "18:00"
+    },
+    "amenities": [
+      "reception"
+    ]
+  },
+  {
+    "id": 6,
+    "name": "Locus Coworking Avenida Paulista",
+    "street": "Avenida Paulista",
+    "number": "777",
+    "complement": "15º andar",
+    "neighborhood": "Jardim Paulista",
+    "zip_code": "01311-914",
+    "description": "Coworking, escritórios mobiliados e salas de reunião na Avenida Paulista.",
+    "source_url": "https://locus.digital/coworking/"
+  },
+  {
+    "id": 7,
+    "name": "CIVI-CO / Impact Hub São Paulo",
+    "street": "Rua Doutor Virgílio de Carvalho Pinto",
+    "number": "445",
+    "neighborhood": "Pinheiros",
+    "zip_code": "05415-030",
+    "description": "Hub de impacto socioambiental com coworking e espaços para eventos.",
+    "source_url": "https://civi-co.com/contato/",
+    "weekday_hours": {
+      "from": "08:00",
+      "to": "20:00"
+    }
+  },
+  {
+    "id": 8,
+    "name": "Cubo Itaú",
+    "street": "Alameda Vicente Pinzon",
+    "number": "54",
+    "neighborhood": "Vila Olímpia",
+    "zip_code": "04547-130",
+    "description": "Hub de inovação para startups. O acesso depende das regras de associação e visita do Cubo.",
+    "source_url": "https://site.cubo.itau/"
+  },
+  {
+    "id": 9,
+    "name": "Teia Centro",
+    "street": "Rua Doutor Bráulio Gomes",
+    "number": "139",
+    "neighborhood": "Centro Histórico",
+    "zip_code": "01047-020",
+    "description": "Coworking público gratuito da Ade Sampa na Hemeroteca Mário de Andrade. As reservas são feitas pelo Teia.",
+    "source_url": "https://adesampa.com.br/teia/work/centro/",
+    "weekday_hours": {
+      "from": "09:00",
+      "to": "17:00"
+    },
+    "is_free": true,
+    "amenities": [
+      "meeting_rooms"
+    ]
+  },
+  {
+    "id": 10,
+    "name": "Teia Taipas",
+    "street": "Rua Diógenes Dourado",
+    "number": "101",
+    "neighborhood": "Taipas",
+    "description": "Coworking público gratuito da Ade Sampa. As reservas são feitas pelo Teia.",
+    "source_url": "https://adesampa.com.br/teia/work/taipas/",
+    "weekday_hours": {
+      "from": "08:00",
+      "to": "17:00"
+    },
+    "is_free": true
+  },
+  {
+    "id": 11,
+    "name": "Biblioteca Mário de Andrade — Sala de Estudos",
+    "street": "Rua da Consolação",
+    "number": "94",
+    "neighborhood": "Centro",
+    "zip_code": "01302-000",
+    "description": "Sala pública de estudos no térreo, não um coworking comercial.",
+    "source_url": "https://prefeitura.sp.gov.br/web/cultura/bma/menu/servico",
+    "weekday_hours": {
+      "from": "08:30",
+      "to": "20:30"
+    },
+    "saturday_hours": {
+      "from": "10:00",
+      "to": "17:00"
+    },
+    "is_free": true
+  }
+]
