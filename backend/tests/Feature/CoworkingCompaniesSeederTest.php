@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Models\Space;
 use App\Models\User;
 use Database\Seeders\CoworkingCompaniesSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -42,6 +43,26 @@ class CoworkingCompaniesSeederTest extends TestCase
             'start_time' => $day->setHour(10)->toIso8601String(),
             'end_time' => $day->setHour(11)->toIso8601String(),
         ])->assertUnprocessable();
+    }
+
+    public function test_catalogue_does_not_replace_a_manually_managed_space_with_the_same_name(): void
+    {
+        $admin = User::factory()->create()->forceFill(['role' => User::ROLE_ADMIN]);
+        $admin->save();
+        $space = Space::factory()->for($admin, 'user')->create([
+            'name' => 'WeWork Paulista 1374',
+            'description' => 'Cadastro manual',
+            'daily_price' => 180,
+        ]);
+
+        $this->seed(CoworkingCompaniesSeeder::class);
+
+        $this->assertSame(1, $admin->spaces()->where('name', $space->name)->count());
+        $current = $space->fresh();
+        $this->assertSame('Cadastro manual', $current->description);
+        $this->assertEquals(180, $current->daily_price);
+        $this->assertSame($space->opening_hours, $current->opening_hours);
+        $this->assertSame($space->availability, $current->availability);
     }
 
     public function test_catalogue_requires_an_existing_administrator(): void

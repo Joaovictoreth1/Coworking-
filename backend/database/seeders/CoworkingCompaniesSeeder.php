@@ -11,6 +11,8 @@ use RuntimeException;
 
 class CoworkingCompaniesSeeder extends Seeder
 {
+    private const SOURCE_NOTICE = ' Cadastro informativo, sem reserva por este site. Os preços informados são valores iniciais. Confirme horários e valores na fonte oficial: ';
+
     private const SPACES = [
         'WeWork Paulista 1374' => [
             'street' => 'Avenida Paulista', 'number' => '1374', 'neighborhood' => 'Bela Vista', 'zip_code' => '01310-100',
@@ -93,12 +95,16 @@ class CoworkingCompaniesSeeder extends Seeder
 
         DB::transaction(function () use ($owner, $closed) {
             foreach (self::SPACES as $name => $space) {
-                $source = $space['source'];
+                $marker = self::SOURCE_NOTICE.$space['source'];
                 unset($space['source']);
 
-                $space['description'] .= " Cadastro informativo, sem reserva por este site. Os preços informados são valores iniciais. Confirme horários e valores na fonte oficial: {$source}";
+                $existing = $owner->spaces()->where('name', $name)->lockForUpdate()->first();
+                if ($existing !== null && ! str_ends_with($existing->description ?? '', $marker)) {
+                    continue;
+                }
 
-                $owner->spaces()->updateOrCreate(['name' => $name], $space + [
+                $space['description'] .= $marker;
+                $attributes = $space + [
                     'city' => 'São Paulo',
                     'state' => 'SP',
                     'is_active' => true,
@@ -108,7 +114,13 @@ class CoworkingCompaniesSeeder extends Seeder
                     'monthly_price' => null,
                     'opening_hours' => $closed,
                     'availability' => $closed,
-                ]);
+                ];
+
+                if ($existing !== null) {
+                    $existing->update($attributes);
+                } else {
+                    $owner->spaces()->create(['name' => $name] + $attributes);
+                }
             }
         });
     }
