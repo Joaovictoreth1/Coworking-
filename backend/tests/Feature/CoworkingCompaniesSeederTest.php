@@ -53,7 +53,7 @@ class CoworkingCompaniesSeederTest extends TestCase
             'name' => 'WeWork Paulista 1374',
             'description' => 'Cadastro manual',
             'daily_price' => 180,
-        ]);
+        ])->refresh();
 
         $this->seed(CoworkingCompaniesSeeder::class);
 
