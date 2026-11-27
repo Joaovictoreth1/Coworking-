@@ -1,4 +1,5 @@
 import { request, tokenStorage } from './api'
+import { STATIC_MODE } from './staticMode'
 
 /* ------------------------------ Tipos ------------------------------ */
 
@@ -18,6 +19,7 @@ export interface Space {
     id: number
     name: string
     description: string | null
+    source_url?: string
     capacity: number | null
     zip_code: string | null
     street: string
@@ -331,10 +333,14 @@ function filtersToQuery(f: SpaceFilters): string {
 // Vitrine pública (só locais ativos). O token é opcional: com ele a API informa quais são favoritos.
 export const publicSpacesApi = {
     list: (filters: SpaceFilters) =>
-        request<Paginated<Space>>(`/spaces${filtersToQuery(filters)}`, { token: tokenStorage.get() }),
+        STATIC_MODE
+            ? import('./staticSpaces').then(({ listStaticSpaces }) => listStaticSpaces(filters))
+            : request<Paginated<Space>>(`/spaces${filtersToQuery(filters)}`, { token: tokenStorage.get() }),
 
     get: (id: number) =>
-        request<{ data: Space }>(`/spaces/${id}`, { token: tokenStorage.get() }).then((r) => r.data),
+        STATIC_MODE
+            ? import('./staticSpaces').then(({ getStaticSpace }) => getStaticSpace(id))
+            : request<{ data: Space }>(`/spaces/${id}`, { token: tokenStorage.get() }).then((r) => r.data),
 }
 
 export const favoritesApi = {

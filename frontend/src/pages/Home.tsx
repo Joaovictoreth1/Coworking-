@@ -8,6 +8,7 @@ import SpaceFilters from '../components/SpaceFilters'
 import { useSpaceSearch } from '../hooks/useSpaceSearch'
 import { href } from '../lib/route'
 import { type FilterState } from '../lib/spaces'
+import { STATIC_MODE, STATIC_NOTICE } from '../lib/staticMode'
 import { primaryButton, secondaryButton } from '../lib/ui'
 
 const SKELETON_KEYS = ['s0', 's1', 's2', 's3', 's4', 's5', 's6', 's7']
@@ -57,7 +58,7 @@ export default function Home() {
                 <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
                     <div className="max-w-2xl">
                         <span className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/15 px-3 py-1 text-xs font-semibold tracking-wide text-indigo-200">
-                            Coworking Brasil · Reserva imediata
+                            {STATIC_MODE ? 'Coworking Brasil · Catálogo de São Paulo' : 'Coworking Brasil · Reserva imediata'}
                         </span>
                         <h1 className="mt-4 font-display text-3xl font-bold tracking-tight text-white sm:text-5xl">
                             Encontre o espaço ideal para produzir melhor
@@ -70,7 +71,11 @@ export default function Home() {
                     </div>
 
                     <div className="flex flex-wrap gap-3">
-                        {user ? (
+                        {STATIC_MODE ? (
+                            <p className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white">
+                                {STATIC_NOTICE}
+                            </p>
+                        ) : user ? (
                             <>
                                 <a
                                     href={href('my-bookings')}
@@ -154,7 +159,7 @@ export default function Home() {
                         })}
                     </div>
 
-                    <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-300">
+                    {!STATIC_MODE && <ul className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-300">
                         <li className="inline-flex items-center gap-1.5">
                             <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
                             Confirmação imediata
@@ -167,7 +172,7 @@ export default function Home() {
                             <CheckIcon className="h-3.5 w-3.5 text-emerald-400" />
                             Sem taxas ocultas
                         </li>
-                    </ul>
+                    </ul>}
                 </div>
             </section>
 
@@ -259,7 +264,7 @@ export default function Home() {
                         >
                             {items.map((space) => (
                                 <li key={space.id} className="flex">
-                                    <SpaceCard space={space} onToggleFavorite={favorites.toggle} />
+                                    <SpaceCard space={space} onToggleFavorite={STATIC_MODE ? undefined : favorites.toggle} />
                                 </li>
                             ))}
                         </ul>

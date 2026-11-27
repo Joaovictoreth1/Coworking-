@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ApiError, authApi, tokenStorage, type User } from '../lib/api'
+import { STATIC_MODE } from '../lib/staticMode'
 import { AuthContext, type AuthContextValue, type RegisterData } from './context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null)
-    const [loading, setLoading] = useState<boolean>(() => Boolean(tokenStorage.get()))
+    const [loading, setLoading] = useState<boolean>(() => !STATIC_MODE && Boolean(tokenStorage.get()))
 
     // Restaura a sessão ao abrir o app
     useEffect(() => {
+        if (STATIC_MODE) return
         const token = tokenStorage.get()
         if (!token) return
 

@@ -1,3 +1,5 @@
+import { STATIC_MODE, STATIC_NOTICE } from './staticMode'
+
 export const API_URL: string =
     import.meta.env.VITE_API_URL ?? 'http://localhost:8000/api'
 
@@ -37,6 +39,8 @@ export async function request<T>(
     path: string,
     options: { method?: string; body?: unknown; form?: FormData; token?: string | null } = {},
 ): Promise<T> {
+    if (STATIC_MODE) throw new ApiError(STATIC_NOTICE, 503)
+
     const headers: Record<string, string> = { Accept: 'application/json' }
     // Com FormData o navegador define o Content-Type (com o boundary) sozinho
     if (options.body !== undefined) headers['Content-Type'] = 'application/json'

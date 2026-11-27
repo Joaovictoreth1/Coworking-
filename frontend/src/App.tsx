@@ -1,8 +1,11 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from './auth/context'
+import ComponentBody from './components/ComponentBody'
 import { ToastContainer } from './components/Toast'
-import { navigate, useRoute, useRouteId, type Route } from './lib/route'
+import { href, navigate, useRoute, useRouteId, type Route } from './lib/route'
+import { STATIC_MODE, STATIC_NOTICE } from './lib/staticMode'
+import { primaryButton } from './lib/ui'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Register from './pages/Register'
@@ -73,7 +76,7 @@ function AppContent() {
     }, [user, loading, queryClient])
 
     useEffect(() => {
-        if (loading) return
+        if (loading || STATIC_MODE) return
         // Logou/cadastrou? Sai das telas de autenticação e cai na home ou painel.
         if (user && isAuthRoute) navigate('home')
         // Rotas protegidas exigem login
@@ -81,6 +84,18 @@ function AppContent() {
         // Rotas exclusivas de admin bloqueiam usuários comuns
         if (user && !user.is_admin && route === 'admin-dashboard') navigate('home')
     }, [user, loading, isAuthRoute, isPrivateRoute, route])
+
+    if (STATIC_MODE && (isAuthRoute || isPrivateRoute)) {
+        return (
+            <ComponentBody>
+                <section className="mx-auto max-w-xl space-y-4 rounded-2xl border border-slate-200 bg-white p-6">
+                    <h1 className="font-display text-2xl font-bold text-slate-900">Catálogo de coworkings</h1>
+                    <p>{STATIC_NOTICE}</p>
+                    <a href={href('home')} className={primaryButton}>Ver espaços</a>
+                </section>
+            </ComponentBody>
+        )
+    }
 
     if (loading) {
         return <FullScreenLoader label="Carregando aplicação..." />
