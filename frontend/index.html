@@ -10,10 +10,11 @@
     <title>Coworking Brasil · Encontre e reserve espaços de trabalho</title>
     <meta
       name="description"
-      content="Busque coworkings, salas de reunião e estações de trabalho por preço, comodidades e capacidade. Compare, favorite e reserve online em poucos cliques."
+      content="Encontre coworkings, salas de reunião e escritórios privativos no Brasil. Compare preços, capacidade e comodidades e reserve online."
     />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
     <!-- As fontes (Bricolage Grotesque + Instrument Sans) são importadas em src/index.css;
          o preconnect apenas adianta a conexão e reduz o tempo até o primeiro texto. -->
@@ -27,18 +28,76 @@
     <meta property="og:title" content="Coworking Brasil · Encontre e reserve espaços de trabalho" />
     <meta
       property="og:description"
-      content="Busque coworkings e salas por preço, comodidades e capacidade. Compare, favorite e reserve online."
+      content="Encontre coworkings, salas de reunião e escritórios privativos no Brasil. Compare preços, capacidade e comodidades e reserve online."
     />
-    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Coworking Brasil · Encontre e reserve espaços de trabalho" />
+    <meta
+      name="twitter:description"
+      content="Encontre coworkings, salas de reunião e escritórios privativos no Brasil. Compare preços, capacidade e comodidades e reserve online."
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Coworking Brasil",
+        "description": "Encontre coworkings, salas de reunião e escritórios privativos no Brasil. Compare preços, capacidade e comodidades e reserve online.",
+        "inLanguage": "pt-BR"
+      }
+    </script>
+
+    <style>
+      body { margin: 0; }
+
+      .boot-screen {
+        box-sizing: border-box;
+        display: grid;
+        min-block-size: 100vh;
+        place-items: center;
+        padding: 1.5rem;
+        background: #f8fafc;
+        color: #0f172a;
+        font: 1rem/1.5 system-ui, sans-serif;
+        text-align: center;
+      }
+
+      .boot-spinner {
+        display: block;
+        inline-size: 1.5rem;
+        block-size: 1.5rem;
+        margin: 0 auto 0.75rem;
+        border: 3px solid #c7d2fe;
+        border-block-start-color: #4f46e5;
+        border-radius: 50%;
+        animation: boot-spin 0.8s linear infinite;
+      }
+
+      @keyframes boot-spin { to { transform: rotate(1turn); } }
+
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spinner { animation: none; }
+      }
+    </style>
+    <noscript><style>#root .boot-screen { display: none; }</style></noscript>
   </head>
   <body>
     <noscript>
-      <div style="padding: 2rem; text-align: center; font-family: system-ui, sans-serif; color: #0f172a;">
-        <h1>Coworking Brasil</h1>
-        <p>Ative o JavaScript no seu navegador para buscar e reservar espaços de trabalho.</p>
-      </div>
+      <main class="boot-screen">
+        <div>
+          <h1>Coworking Brasil</h1>
+          <p>Ative o JavaScript no seu navegador para buscar e reservar espaços de trabalho.</p>
+        </div>
+      </main>
     </noscript>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-screen">
+        <div role="status">
+          <span class="boot-spinner" aria-hidden="true"></span>
+          Carregando Coworking Brasil…
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
